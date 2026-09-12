@@ -1,0 +1,53 @@
+# ===== 데이터 (CCTV/개인정보 포함 가능 - 절대 커밋 금지) =====
+data/raw/*
+data/processed/*
+!data/**/.gitkeep
+*.csv
+*.tsv
+*.parquet
+*.xlsx
+*.db
+*.sqlite3
+# 영상 원본
+*.mp4
+*.avi
+*.mov
+*.mkv
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.Python
+build/
+dist/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ===== Jupyter =====
+.ipynb_checkpoints/
+
+# ===== 환경 변수 / 비밀 =====
+.env
+.env.*
+*.key
+*.pem
+credentials.json
+secrets.*
+
+# ===== 모델 가중치 =====
+*.pt
+*.pth
+*.weights
+*.onnx
+
+# ===== IDE / OS =====
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
