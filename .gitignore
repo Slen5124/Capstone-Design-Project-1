@@ -1,0 +1,21 @@
+# Data and Weights (Large files)
+data/
+weights/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+.env
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Labeling tools
+*.json
