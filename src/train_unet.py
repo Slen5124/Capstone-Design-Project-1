@@ -18,9 +18,9 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 IMG_DIR = os.path.join(BASE_DIR, "data", "raw_images")
 JSON_DIR = os.path.join(BASE_DIR, "data", "processed_json")
 IMG_SIZE = (512, 512)
-BATCH_SIZE = 32
-EPOCHS = 40
-LEARNING_RATE = 2e-4
+BATCH_SIZE = 4
+EPOCHS = 1
+LEARNING_RATE = 1e-4
 
 # SAM3 전처리 시 사용했던 태그 리스트
 # 0번(배경)을 포함하기 위해 1부터 번호를 부여합니다.
@@ -37,6 +37,14 @@ CLASSES = [
 ]
 CLASS_MAP = {name: i + 1 for i, name in enumerate(CLASSES)}
 NUM_CLASSES = len(CLASSES) + 1  # 배경(0) + 9개 클래스 = 총 10개
+
+def imread_unicode(path):
+    """Windows 환경에서 한글 경로가 포함된 이미지를 안전하게 읽기 위한 함수"""
+    try:
+        img_array = np.fromfile(path, np.uint8)
+        return cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+    except Exception:
+        return None
 
 # =============================================================================
 # 2. 커스텀 데이터셋 (Dataset)
@@ -59,8 +67,11 @@ class SegmentationDataset(Dataset):
         filename = os.path.basename(img_path)
         json_path = os.path.join(self.json_dir, os.path.splitext(filename)[0] + ".json")
         
-        # 1) 이미지 읽기
-        image = cv2.imread(img_path)
+        # 1) 이미지 읽기 (한글 경로 지원)
+        image = imread_unicode(img_path)
+        if image is None:
+            raise RuntimeError(f"이미지 읽기 실패: {img_path}")
+            
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         orig_h, orig_w = image.shape[:2]
         
@@ -183,7 +194,7 @@ def main():
     print("[*] 데이터셋을 준비하는 중입니다...")
     dataset = SegmentationDataset(IMG_DIR, JSON_DIR, CLASS_MAP, IMG_SIZE)
     # 데이터를 나누지 않고 전체로 학습합니다 (필요시 train/val 분할 가능)
-    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=4, pin_memory=True)
+    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=1)
     
     print(f"[*] 총 {len(dataset)}장의 사진을 찾았습니다.")
     
