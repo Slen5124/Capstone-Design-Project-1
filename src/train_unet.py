@@ -192,6 +192,9 @@ def main():
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
     
+    weights_dir = os.path.join(BASE_DIR, "weights")
+    os.makedirs(weights_dir, exist_ok=True)
+
     # 3) 에포크(Epoch) 진행
     print("[*] 모델 학습을 시작합니다!")
     for epoch in range(1, EPOCHS + 1):
@@ -218,12 +221,16 @@ def main():
         avg_loss = epoch_loss / len(dataloader)
         print(f"====> Epoch {epoch} 종료 | 평균 Loss: {avg_loss:.4f}")
         
-    # 4) 가중치 저장
-    weights_dir = os.path.join(BASE_DIR, "weights")
-    os.makedirs(weights_dir, exist_ok=True)
+        # 10 에포크마다 중간 체크포인트 가중치 저장
+        if epoch % 10 == 0:
+            ckpt_path = os.path.join(weights_dir, f"unet_epoch_{epoch}.pth")
+            torch.save(model.state_dict(), ckpt_path)
+            print(f"[*] [체크포인트] {epoch} 에포크 가중치가 '{ckpt_path}'에 안전하게 저장되었습니다.")
+        
+    # 4) 최종 가중치 저장
     save_path = os.path.join(weights_dir, "unet_final.pth")
     torch.save(model.state_dict(), save_path)
-    print(f"[*] 학습이 완료되었습니다! 가중치가 '{save_path}'에 저장되었습니다.")
+    print(f"[*] 전체 학습이 완료되었습니다! 최종 가중치가 '{save_path}'에 저장되었습니다.")
 
 if __name__ == "__main__":
     main()
