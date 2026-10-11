@@ -64,10 +64,15 @@ class SegmentationDataset(Dataset):
         filename = os.path.basename(img_path)
         json_path = os.path.join(self.json_dir, os.path.splitext(filename)[0] + ".json")
         
-        # 1) 이미지 읽기
-        image = cv2.imread(img_path)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        orig_h, orig_w = image.shape[:2]
+        # 1) 이미지 읽기 (깨지거나 0바이트인 파일 발견 시 다음 이미지로 자동 우회)
+        try:
+            image = cv2.imread(img_path)
+            if image is None or image.size == 0:
+                return self.__getitem__((idx + 1) % len(self.img_paths))
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            orig_h, orig_w = image.shape[:2]
+        except Exception:
+            return self.__getitem__((idx + 1) % len(self.img_paths))
         
         # 2) 마스크 생성 (배경은 0으로 초기화)
         mask = np.zeros((orig_h, orig_w), dtype=np.uint8)
