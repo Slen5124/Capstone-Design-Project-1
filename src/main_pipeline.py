@@ -1,7 +1,14 @@
 import os
+import sys
 import gc
 import json
 import torch
+
+# 현재 디렉토리(src)를 모듈 검색 경로에 추가하여 서브 모듈 임포트 가능하도록 설정
+SRC_DIR = os.path.dirname(os.path.abspath(__file__))
+if SRC_DIR not in sys.path:
+    sys.path.append(SRC_DIR)
+
 from vision_module.vision_core import VisionProcessor
 from llm_agent_module.rag_agent import LLMAgent
 
@@ -10,10 +17,11 @@ def main():
     print("  Alo Yoga Construction Progress Monitoring Pipeline  ")
     print("======================================================")
     
-    # 경로 설정
-    raw_images_dir = "data/raw_images"
-    json_dir = "data/processed_json"
-    schedules_dir = "data/schedules"
+    # 프로젝트 루트 디렉토리 기준 경로 설정
+    BASE_DIR = os.path.abspath(os.path.join(SRC_DIR, ".."))
+    raw_images_dir = os.path.join(BASE_DIR, "data", "raw_images")
+    json_dir = os.path.join(BASE_DIR, "data", "processed_json")
+    schedules_dir = os.path.join(BASE_DIR, "data", "schedules")
     
     # 테스트용 더미 파일 경로 설정
     image_path = os.path.join(raw_images_dir, "snapshot_15min.jpg")
