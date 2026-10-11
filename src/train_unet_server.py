@@ -73,15 +73,19 @@ class SegmentationDataset(Dataset):
         mask = np.zeros((orig_h, orig_w), dtype=np.uint8)
         
         if os.path.exists(json_path):
-            with open(json_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-            
-            # 폴리곤 데이터를 마스크에 그리기
-            for shape in data.get('shapes', []):
-                label = shape['label']
-                class_id = self.class_map.get(label, 0) # 매핑 안되면 배경(0) 처리
-                points = np.array(shape['points'], dtype=np.int32)
-                cv2.fillPoly(mask, [points], class_id)
+            try:
+                with open(json_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                
+                # 폴리곤 데이터를 마스크에 그리기
+                for shape in data.get('shapes', []):
+                    label = shape['label']
+                    class_id = self.class_map.get(label, 0) # 매핑 안되면 배경(0) 처리
+                    points = np.array(shape['points'], dtype=np.int32)
+                    cv2.fillPoly(mask, [points], class_id)
+            except Exception:
+                # 중간에 끊기거나 손상된 JSON 파일은 무시하고 배경으로 처리하여 학습 중단 방지
+                pass
                 
         # 3) 크기 리사이즈
         image = cv2.resize(image, self.img_size, interpolation=cv2.INTER_LINEAR)
