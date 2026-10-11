@@ -25,12 +25,14 @@ from ultralytics.models.sam import SAM3SemanticPredictor
 # ---------------------------------------------------------------------------
 # 설정
 # ---------------------------------------------------------------------------
-WEIGHTS_PATH = os.path.join("weights", "sam3.pt")
-RAW_DIR = os.path.join("data", "raw_images")
-OUT_DIR = os.path.join("data", "processed_json")
+# 프로젝트 루트 디렉토리 기준 경로 설정 (어디서 실행해도 동작하도록 보장)
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+WEIGHTS_PATH = os.path.join(BASE_DIR, "weights", "sam3.pt")
+RAW_DIR = os.path.join(BASE_DIR, "data", "raw_images")
+OUT_DIR = os.path.join(BASE_DIR, "data", "processed_json")
 
 # 현재 컴퓨터의 VRAM에 맞게 작업자 수 설정 (RTX 5060 Ti 16GB 기준 2~3개 권장, A6000 62GB는 8~10개 권장)
-NUM_WORKERS = 2
+NUM_WORKERS = 1
 
 # 클래스 정의서 (teaching.md 3교시)
 CLASS_PROMPTS = [
@@ -46,7 +48,7 @@ CLASS_PROMPTS = [
 ]
 
 CONF_THRESHOLD = 0.4  # 낮추면 더 많이 찾고(오탐 증가), 높이면 확실한 것만 남김
-OVERWRITE_EXISTING = True  # True로 변경 시 기존 결과물(JSON)을 덮어씌워 새로 라벨링을 진행합니다.
+OVERWRITE_EXISTING = False  # True로 변경 시 기존 결과물(JSON)을 덮어씌워 새로 라벨링을 진행합니다.
 
 # 글로벌 변수 (각 워커 프로세스마다 독립적으로 모델을 하나씩 로드하기 위함)
 _worker_predictor = None
@@ -137,6 +139,7 @@ def main():
         "model": WEIGHTS_PATH,
         "verbose": False,
         "save": False,
+        "imgsz": 644,
     }
     if use_gpu:
         overrides["quantize"] = 16  # FP16
