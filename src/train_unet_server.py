@@ -23,7 +23,7 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 IMG_DIR = os.path.join(BASE_DIR, "data", "raw_images")
 JSON_DIR = os.path.join(BASE_DIR, "data", "processed_json")
 IMG_SIZE = (512, 512)
-BATCH_SIZE = 32
+BATCH_SIZE = 16  # 32에서 16으로 조정하여 VRAM OOM 방지
 EPOCHS = 20
 LEARNING_RATE = 2e-4
 
@@ -196,6 +196,7 @@ def main():
     model = UNet(in_channels=3, out_channels=NUM_CLASSES).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    scaler = torch.cuda.amp.GradScaler(enabled=(device.type == "cuda"))
     
     weights_dir = os.path.join(BASE_DIR, "weights")
     os.makedirs(weights_dir, exist_ok=True)
@@ -211,14 +212,17 @@ def main():
             images = images.to(device)
             masks = masks.to(device)
             
-            # 순전파
-            outputs = model(images)
-            loss = criterion(outputs, masks)
+            optimizer.zero_grad()
+
+            # 순전파 (FP16 혼합 정밀도로 VRAM 절약 및 연산 가속)
+            with torch.cuda.amp.autocast(enabled=(device.type == "cuda")):
+                outputs = model(images)
+                loss = criterion(outputs, masks)
             
             # 역전파
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
             
             epoch_loss += loss.item()
             loop.set_postfix(loss=loss.item())
