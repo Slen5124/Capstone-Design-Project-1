@@ -21,6 +21,8 @@ IMG_SIZE = (512, 512)
 BATCH_SIZE = 4
 EPOCHS = 1
 LEARNING_RATE = 1e-4
+RESUME = True  # True로 설정 시 weights 폴더의 가장 최신 체크포인트부터 이어서 학습
+CHECKPOINT_PATH = ""  # 특정 가중치를 직접 지정할 경우 경로 입력 (비워두면 자동 탐색)
 
 # SAM3 전처리 시 사용했던 태그 리스트
 # 0번(배경)을 포함하기 위해 1부터 번호를 부여합니다.
@@ -212,9 +214,39 @@ def main():
     weights_dir = os.path.join(BASE_DIR, "weights")
     os.makedirs(weights_dir, exist_ok=True)
 
-    # 3) 에포크(Epoch) 진행
-    print("[*] 모델 학습을 시작합니다!")
-    for epoch in range(1, EPOCHS + 1):
+    # 3) 이어 학습하기 (Resume) 체크포인트 로드
+    start_epoch = 1
+    if RESUME:
+        ckpt_to_load = None
+        if CHECKPOINT_PATH and os.path.exists(CHECKPOINT_PATH):
+            ckpt_to_load = CHECKPOINT_PATH
+        else:
+            # weights 폴더에서 unet_epoch_*.pth 파일 중 가장 큰 에포크 번호 탐색
+            ckpt_files = glob.glob(os.path.join(weights_dir, "unet_epoch_*.pth"))
+            if ckpt_files:
+                def extract_epoch(path):
+                    basename = os.path.basename(path)
+                    try:
+                        return int(basename.replace("unet_epoch_", "").replace(".pth", ""))
+                    except ValueError:
+                        return 0
+                ckpt_files.sort(key=extract_epoch)
+                ckpt_to_load = ckpt_files[-1]
+
+        if ckpt_to_load and os.path.exists(ckpt_to_load):
+            try:
+                model.load_state_dict(torch.load(ckpt_to_load, map_location=device))
+                loaded_epoch = int(os.path.basename(ckpt_to_load).replace("unet_epoch_", "").replace(".pth", ""))
+                start_epoch = loaded_epoch + 1
+                print(f"[*] [이어 학습하기] 체크포인트 '{ckpt_to_load}' 로드 완료! Epoch {start_epoch}부터 학습을 시작합니다.")
+            except Exception as e:
+                print(f"[경고] 체크포인트 로드 실패 ({e}). Epoch 1부터 새로 시작합니다.")
+        else:
+            print("[*] 저장된 체크포인트가 없습니다. Epoch 1부터 새로 시작합니다.")
+
+    # 4) 에포크(Epoch) 진행
+    print(f"[*] 모델 학습을 시작합니다! (진행 범위: Epoch {start_epoch} ~ {EPOCHS})")
+    for epoch in range(start_epoch, EPOCHS + 1):
         model.train()
         epoch_loss = 0.0
         
