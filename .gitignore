@@ -8,6 +8,9 @@ data/processed/*
 *.xlsx
 *.db
 *.sqlite3
+# 비공개 멘토 미팅 자료·수행계획서 원본
+AloYoga_멘토미팅(영문).pdf
+Development of an AI-Powered Construction Management Support System for Global Retail Stores.pdf
 # 영상 원본
 *.mp4
 *.avi
