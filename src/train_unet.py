@@ -1,6 +1,8 @@
 import os
 import glob
 import json
+import random
+import time
 import cv2
 import numpy as np
 import torch
@@ -10,6 +12,11 @@ from torch.utils.data import Dataset, DataLoader
 import torchvision.transforms.functional as TF
 from tqdm import tqdm
 
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+
 # =============================================================================
 # 1. 설정 (Settings)
 # =============================================================================
@@ -17,12 +24,25 @@ from tqdm import tqdm
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 IMG_DIR = os.path.join(BASE_DIR, "data", "raw_images")
 JSON_DIR = os.path.join(BASE_DIR, "data", "processed_json")
+WEIGHTS_DIR = os.path.join(BASE_DIR, "weights")
+RUNS_DIR = os.path.join(BASE_DIR, "runs")
+VIZ_DIR = os.path.join(RUNS_DIR, "visualizations")
+
 IMG_SIZE = (512, 512)
 BATCH_SIZE = 4
 EPOCHS = 1
 LEARNING_RATE = 1e-4
+NUM_WORKERS = 1  # 데이터 로딩에 사용할 CPU 프로세스 수 (로컬 1, 서버 4 권장)
+VAL_RATIO = 0.10  # 각 도시별 Validation 데이터 비율 (10%)
 RESUME = True  # True로 설정 시 weights 폴더의 가장 최신 체크포인트부터 이어서 학습
 CHECKPOINT_PATH = ""  # 특정 가중치를 직접 지정할 경우 경로 입력 (비워두면 자동 탐색)
+
+# =============================================================================
+# 에포크 기록 및 체크포인트 저장 주기 설정
+# =============================================================================
+SAVE_THRESHOLD_EPOCH = 20  # 저장 주기가 전환되는 기준 에포크 (지금은 20)
+SAVE_INTERVAL_LOW = 5      # 기준 에포크(20) 이하일 때 저장 주기: 5 에포크마다
+SAVE_INTERVAL_HIGH = 1     # 기준 에포크(20) 초과일 때 저장 주기: 1 에포크마다
 
 # SAM3 전처리 시 사용했던 태그 리스트
 # 0번(배경)을 포함하기 위해 1부터 번호를 부여합니다.
@@ -40,6 +60,20 @@ CLASSES = [
 CLASS_MAP = {name: i + 1 for i, name in enumerate(CLASSES)}
 NUM_CLASSES = len(CLASSES) + 1  # 배경(0) + 9개 클래스 = 총 10개
 
+# 시각화용 클래스별 고유 색상 (RGB)
+CLASS_COLORS = np.array([
+    [30, 30, 30],       # 0: Background (어두운 회색)
+    [46, 204, 113],     # 1: floor (초록)
+    [52, 152, 219],     # 2: metal stud framing (파랑)
+    [230, 126, 34],     # 3: wall (주황)
+    [155, 89, 182],     # 4: ceiling (보라)
+    [26, 188, 156],     # 5: HVAC ductwork (청록)
+    [231, 76, 60],      # 6: person (빨강)
+    [241, 196, 15],     # 7: construction materials (노랑)
+    [52, 73, 94],       # 8: Tools (남색)
+    [149, 165, 166],    # 9: unidentifiable (회색)
+], dtype=np.uint8)
+
 def imread_unicode(path):
     """Windows 환경에서 한글 경로가 포함된 이미지를 안전하게 읽기 위한 함수"""
     try:
@@ -52,14 +86,17 @@ def imread_unicode(path):
 # 2. 커스텀 데이터셋 (Dataset)
 # =============================================================================
 class SegmentationDataset(Dataset):
-    def __init__(self, img_dir, json_dir, class_map, img_size=(512, 512)):
+    def __init__(self, img_dir, json_dir, class_map, img_size=(512, 512), img_paths=None):
         self.img_dir = img_dir
         self.json_dir = json_dir
         self.class_map = class_map
         self.img_size = img_size
         
-        # 이미지 파일 리스트 가져오기 (확장자 jpg 기준)
-        self.img_paths = glob.glob(os.path.join(img_dir, "*.jpg"))
+        # 이미지 파일 리스트 (지정되지 않은 경우 전체 탐색)
+        if img_paths is not None:
+            self.img_paths = list(img_paths)
+        else:
+            self.img_paths = glob.glob(os.path.join(img_dir, "*.jpg"))
         
     def __len__(self):
         return len(self.img_paths)
@@ -192,37 +229,226 @@ class UNet(nn.Module):
         return x
 
 # =============================================================================
-# 4. 학습 루프 (Training Loop)
+# 4. 도시별 데이터 분할 및 시각화 도구 (Utilities & Visualization)
+# =============================================================================
+def split_dataset_by_city(img_dir, val_ratio=0.10, seed=42):
+    """
+    각 도시(지점)별로 이미지를 묶은 뒤, 도시마다 10%를 균등하게 Validation 세트로 분할
+    (Stratified Sampling / 층화 추출)
+    """
+    all_img_paths = glob.glob(os.path.join(img_dir, "*.jpg"))
+    city_groups = {}
+    
+    for path in all_img_paths:
+        filename = os.path.basename(path)
+        parts = filename.split('_-_')
+        if len(parts) >= 3:
+            city_name = parts[2].split('-')[0].strip()
+        else:
+            city_name = "Unknown"
+            
+        if city_name not in city_groups:
+            city_groups[city_name] = []
+        city_groups[city_name].append(path)
+        
+    random.seed(seed)
+    train_paths = []
+    val_paths = []
+    
+    print("\n" + "=" * 65)
+    print(" [*] 도시별 데이터셋 층화 분할 (Stratified Split 90% : 10%)")
+    print("=" * 65)
+    for city, paths in sorted(city_groups.items()):
+        paths_copy = list(paths)
+        random.shuffle(paths_copy)
+        n_val = int(len(paths_copy) * val_ratio)
+        city_val = paths_copy[:n_val]
+        city_train = paths_copy[n_val:]
+        
+        train_paths.extend(city_train)
+        val_paths.extend(city_val)
+        print(f"  - [{city}]: 전체 {len(paths):,}장 -> Train: {len(city_train):,}장 | Val: {len(city_val):,}장")
+        
+    print(f" [*] 총 분할 결과: Train {len(train_paths):,}장 ({100*(1-val_ratio):.0f}%), Val {len(val_paths):,}장 ({100*val_ratio:.0f}%)")
+    print("=" * 65 + "\n")
+    return train_paths, val_paths
+
+
+def mask_to_rgb(mask_2d):
+    """(H, W) 정수 마스크를 (H, W, 3) RGB 컬러 이미지로 변환"""
+    h, w = mask_2d.shape
+    rgb = np.zeros((h, w, 3), dtype=np.uint8)
+    for c in range(NUM_CLASSES):
+        rgb[mask_2d == c] = CLASS_COLORS[c]
+    return rgb
+
+
+def select_fixed_city_samples(val_dataset, json_dir):
+    """각 도시별로 라벨이 포함된 대표 검증 샘플을 1장씩 선정하여 고정 추적"""
+    city_samples = {}
+    for idx, path in enumerate(val_dataset.img_paths):
+        filename = os.path.basename(path)
+        parts = filename.split('_-_')
+        city = parts[2].split('-')[0].strip() if len(parts) >= 3 else "Unknown"
+        
+        if city not in city_samples:
+            json_file = os.path.join(json_dir, os.path.splitext(filename)[0] + ".json")
+            if os.path.exists(json_file):
+                try:
+                    with open(json_file, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                    if len(data.get('shapes', [])) > 0:
+                        city_samples[city] = idx
+                except Exception:
+                    pass
+            if city not in city_samples:
+                city_samples[city] = idx
+                
+        if len(city_samples) >= 4:
+            break
+            
+    return city_samples
+
+
+def save_city_visualizations(model, val_dataset, city_samples, epoch, save_dir, device):
+    """
+    각 도시별 대표 이미지에 대해 [원본 | 정답 라벨 | 모델 예측 | 오버레이] 비교 시각자료 생성
+    """
+    model.eval()
+    os.makedirs(save_dir, exist_ok=True)
+    
+    with torch.no_grad():
+        for city, sample_idx in city_samples.items():
+            image_t, mask_t = val_dataset[sample_idx]
+            input_t = image_t.unsqueeze(0).to(device)
+            
+            output = model(input_t)
+            pred = torch.argmax(output, dim=1).squeeze(0).cpu().numpy()
+            
+            orig_img = (image_t.permute(1, 2, 0).cpu().numpy() * 255.0).astype(np.uint8)
+            gt_mask = mask_t.cpu().numpy()
+            
+            gt_rgb = mask_to_rgb(gt_mask)
+            pred_rgb = mask_to_rgb(pred)
+            
+            overlay = (0.5 * orig_img + 0.5 * pred_rgb).astype(np.uint8)
+            
+            fig, axes = plt.subplots(1, 4, figsize=(20, 5.5))
+            axes[0].imshow(orig_img)
+            axes[0].set_title("1. Original Image", fontsize=13, fontweight='bold')
+            axes[0].axis('off')
+            
+            axes[1].imshow(gt_rgb)
+            axes[1].set_title("2. Ground Truth Mask", fontsize=13, fontweight='bold')
+            axes[1].axis('off')
+            
+            axes[2].imshow(pred_rgb)
+            axes[2].set_title(f"3. UNet Prediction (Epoch {epoch})", fontsize=13, fontweight='bold')
+            axes[2].axis('off')
+            
+            axes[3].imshow(overlay)
+            axes[3].set_title("4. Overlay (Image + Pred)", fontsize=13, fontweight='bold')
+            axes[3].axis('off')
+            
+            legend_patches = [
+                mpatches.Patch(color=CLASS_COLORS[i] / 255.0, label=f"{i}: {('bg' if i==0 else CLASSES[i-1])}")
+                for i in range(NUM_CLASSES)
+            ]
+            fig.legend(handles=legend_patches, loc='lower center', ncol=5, bbox_to_anchor=(0.5, -0.05), fontsize=10)
+            
+            plt.suptitle(f"[{city}] Segmentation Comparison - Epoch {epoch}", fontsize=15, fontweight='bold')
+            plt.tight_layout(rect=[0, 0.08, 1, 0.95])
+            
+            safe_city_name = city.replace(',', '').replace(' ', '_')
+            save_path = os.path.join(save_dir, f"epoch_{epoch:02d}_{safe_city_name}.png")
+            plt.savefig(save_path, dpi=130, bbox_inches='tight')
+            plt.close()
+
+
+def plot_training_curves(history, save_path):
+    """Train Loss, Val Loss, Pixel Acc, mIoU 학습 곡선 그래프 자동 업데이트"""
+    if not history or "epochs" not in history or len(history["epochs"]) == 0:
+        return
+        
+    epochs = history["epochs"]
+    train_losses = history["train_loss"]
+    val_losses = history["val_loss"]
+    pixel_accs = history["val_pixel_acc"]
+    mious = history["val_miou"]
+    
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5.5))
+    
+    ax1.plot(epochs, train_losses, marker='o', color='#e74c3c', label='Train Loss', linewidth=2)
+    ax1.plot(epochs, val_losses, marker='s', color='#2980b9', label='Val Loss', linewidth=2)
+    ax1.set_title("Training & Validation Loss", fontsize=13, fontweight='bold')
+    ax1.set_xlabel("Epoch", fontsize=11)
+    ax1.set_ylabel("Loss", fontsize=11)
+    ax1.grid(True, linestyle='--', alpha=0.6)
+    ax1.legend(fontsize=11)
+    
+    ax2.plot(epochs, pixel_accs, marker='^', color='#27ae60', label='Val Pixel Acc (%)', linewidth=2)
+    ax2.plot(epochs, mious, marker='d', color='#8e44ad', label='Val mIoU (%)', linewidth=2)
+    ax2.set_title("Validation Accuracy & mIoU", fontsize=13, fontweight='bold')
+    ax2.set_xlabel("Epoch", fontsize=11)
+    ax2.set_ylabel("Percentage (%)", fontsize=11)
+    ax2.grid(True, linestyle='--', alpha=0.6)
+    ax2.legend(fontsize=11)
+    
+    plt.tight_layout()
+    plt.savefig(save_path, dpi=130)
+    plt.close()
+
+
+# =============================================================================
+# 5. 학습 루프 (Training Loop)
 # =============================================================================
 def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"[*] 사용할 디바이스: {device}")
     
-    # 1) 데이터 로더 준비
-    print("[*] 데이터셋을 준비하는 중입니다...")
-    dataset = SegmentationDataset(IMG_DIR, JSON_DIR, CLASS_MAP, IMG_SIZE)
-    # 데이터를 나누지 않고 전체로 학습합니다 (필요시 train/val 분할 가능)
-    dataloader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=1)
+    os.makedirs(WEIGHTS_DIR, exist_ok=True)
+    os.makedirs(RUNS_DIR, exist_ok=True)
+    os.makedirs(VIZ_DIR, exist_ok=True)
     
-    print(f"[*] 총 {len(dataset)}장의 사진을 찾았습니다.")
+    # 1) 데이터셋 도시별 10% 층화 분할 (Stratified Split)
+    train_paths, val_paths = split_dataset_by_city(IMG_DIR, val_ratio=VAL_RATIO, seed=42)
+    
+    train_dataset = SegmentationDataset(IMG_DIR, JSON_DIR, CLASS_MAP, IMG_SIZE, img_paths=train_paths)
+    val_dataset = SegmentationDataset(IMG_DIR, JSON_DIR, CLASS_MAP, IMG_SIZE, img_paths=val_paths)
+    
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS)
+    
+    # 도시별 고정 시각화 샘플 4장 선정
+    city_samples = select_fixed_city_samples(val_dataset, JSON_DIR)
+    print(f"[*] 도시별 시각화 추적 샘플 선정 완료: {list(city_samples.keys())}")
     
     # 2) 모델, 손실 함수, 옵티마이저 초기화
     model = UNet(in_channels=3, out_channels=NUM_CLASSES).to(device)
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
     
-    weights_dir = os.path.join(BASE_DIR, "weights")
-    os.makedirs(weights_dir, exist_ok=True)
-
     # 3) 이어 학습하기 (Resume) 체크포인트 로드
     start_epoch = 1
+    best_val_loss = float('inf')
+    history_file = os.path.join(RUNS_DIR, "training_history.json")
+    history = {"epochs": [], "train_loss": [], "val_loss": [], "val_pixel_acc": [], "val_miou": []}
+    
+    if os.path.exists(history_file):
+        try:
+            with open(history_file, 'r', encoding='utf-8') as f:
+                history = json.load(f)
+            if history.get("val_loss"):
+                best_val_loss = min(history["val_loss"])
+        except Exception:
+            pass
+            
     if RESUME:
         ckpt_to_load = None
         if CHECKPOINT_PATH and os.path.exists(CHECKPOINT_PATH):
             ckpt_to_load = CHECKPOINT_PATH
         else:
-            # weights 폴더에서 unet_epoch_*.pth 파일 중 가장 큰 에포크 번호 탐색
-            ckpt_files = glob.glob(os.path.join(weights_dir, "unet_epoch_*.pth"))
+            ckpt_files = glob.glob(os.path.join(WEIGHTS_DIR, "unet_epoch_*.pth"))
             if ckpt_files:
                 def extract_epoch(path):
                     basename = os.path.basename(path)
@@ -244,42 +470,112 @@ def main():
         else:
             print("[*] 저장된 체크포인트가 없습니다. Epoch 1부터 새로 시작합니다.")
 
-    # 4) 에포크(Epoch) 진행
+    # 4) 에포크 진행 (Train + Validation)
     print(f"[*] 모델 학습을 시작합니다! (진행 범위: Epoch {start_epoch} ~ {EPOCHS})")
+    
     for epoch in range(start_epoch, EPOCHS + 1):
+        # -----------------------------
+        # [A] 학습 단계 (Training)
+        # -----------------------------
         model.train()
-        epoch_loss = 0.0
+        train_loss = 0.0
         
-        loop = tqdm(dataloader, desc=f"Epoch [{epoch}/{EPOCHS}]")
-        for images, masks in loop:
+        train_loop = tqdm(train_loader, desc=f"Train [{epoch}/{EPOCHS}]")
+        for images, masks in train_loop:
             images = images.to(device)
             masks = masks.to(device)
             
-            # 순전파
+            optimizer.zero_grad()
             outputs = model(images)
             loss = criterion(outputs, masks)
-            
-            # 역전파
-            optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             
-            epoch_loss += loss.item()
-            loop.set_postfix(loss=loss.item())
+            train_loss += loss.item() * len(images)
+            train_loop.set_postfix(loss=loss.item())
             
-        avg_loss = epoch_loss / len(dataloader)
-        print(f"====> Epoch {epoch} 종료 | 평균 Loss: {avg_loss:.4f}")
+        avg_train_loss = train_loss / len(train_dataset)
+
+        # -----------------------------
+        # [B] 검증 단계 (Validation)
+        # -----------------------------
+        model.eval()
+        val_loss = 0.0
+        val_pixel_correct = 0
+        val_total_pixels = 0
+        class_intersections = np.zeros(NUM_CLASSES)
+        class_unions = np.zeros(NUM_CLASSES)
         
-        # 10 에포크마다 중간 체크포인트 가중치 저장
-        if epoch % 10 == 0:
-            ckpt_path = os.path.join(weights_dir, f"unet_epoch_{epoch}.pth")
+        with torch.no_grad():
+            val_loop = tqdm(val_loader, desc=f"Val   [{epoch}/{EPOCHS}]")
+            for images, masks in val_loop:
+                images = images.to(device)
+                masks = masks.to(device)
+                
+                outputs = model(images)
+                loss = criterion(outputs, masks)
+                
+                val_loss += loss.item() * len(images)
+                preds = torch.argmax(outputs, dim=1)
+                
+                val_pixel_correct += (preds == masks).sum().item()
+                val_total_pixels += masks.numel()
+                
+                for c in range(NUM_CLASSES):
+                    class_intersections[c] += ((preds == c) & (masks == c)).sum().item()
+                    class_unions[c] += ((preds == c) | (masks == c)).sum().item()
+                    
+        avg_val_loss = val_loss / len(val_dataset)
+        val_pixel_acc = (val_pixel_correct / val_total_pixels) * 100
+        valid_classes = class_unions > 0
+        val_miou = np.mean(class_intersections[valid_classes] / class_unions[valid_classes]) * 100
+        
+        print(f"\n====> Epoch {epoch} 완료")
+        print(f"      Train Loss: {avg_train_loss:.4f}")
+        print(f"      Val   Loss: {avg_val_loss:.4f} | Pixel Acc: {val_pixel_acc:.2f}% | mIoU: {val_miou:.2f}%")
+        
+        # -----------------------------
+        # [C] 시각자료 생성 및 이력 기록
+        # -----------------------------
+        history["epochs"].append(epoch)
+        history["train_loss"].append(avg_train_loss)
+        history["val_loss"].append(avg_val_loss)
+        history["val_pixel_acc"].append(val_pixel_acc)
+        history["val_miou"].append(val_miou)
+        
+        with open(history_file, 'w', encoding='utf-8') as f:
+            json.dump(history, f, indent=2)
+            
+        plot_training_curves(history, os.path.join(RUNS_DIR, "training_curves.png"))
+
+        # -----------------------------
+        # [D] 동적 주기 기반 체크포인트 및 시각자료 저장
+        # (기준 20 에포크 이하: 5단위, 20 에포크 초과: 1단위)
+        # -----------------------------
+        save_interval = SAVE_INTERVAL_LOW if epoch <= SAVE_THRESHOLD_EPOCH else SAVE_INTERVAL_HIGH
+        is_save_epoch = (epoch % save_interval == 0) or (epoch == EPOCHS)
+        
+        if is_save_epoch:
+            # 1) 도시별 대표 예측 비교 시각자료 생성
+            save_city_visualizations(model, val_dataset, city_samples, epoch, VIZ_DIR, device)
+            
+            # 2) 정기 체크포인트 가중치 저장
+            ckpt_path = os.path.join(WEIGHTS_DIR, f"unet_epoch_{epoch}.pth")
             torch.save(model.state_dict(), ckpt_path)
-            print(f"[*] [체크포인트] {epoch} 에포크 가중치가 '{ckpt_path}'에 안전하게 저장되었습니다.")
+            print(f"[*] [에포크 기록 & 체크포인트 저장] Epoch {epoch} 가중치 및 도시별 시각화 완료 (적용 주기: {save_interval} 에포크)")
+        else:
+            print(f"[*] [에포크 알림] Epoch {epoch} 완료 (체크포인트 저장은 {save_interval} 에포크 주기로 진행됩니다)")
         
-    # 4) 최종 가중치 저장
-    save_path = os.path.join(weights_dir, "unet_final.pth")
+        if avg_val_loss < best_val_loss:
+            best_val_loss = avg_val_loss
+            best_ckpt_path = os.path.join(WEIGHTS_DIR, "unet_best.pth")
+            torch.save(model.state_dict(), best_ckpt_path)
+            print(f"[*] 🌟 [최고 성능 갱신] Best Val Loss: {best_val_loss:.4f} -> '{best_ckpt_path}' 저장 완료!")
+
+    # 최종 가중치 저장
+    save_path = os.path.join(WEIGHTS_DIR, "unet_final.pth")
     torch.save(model.state_dict(), save_path)
-    print(f"[*] 전체 학습이 완료되었습니다! 최종 가중치가 '{save_path}'에 저장되었습니다.")
+    print(f"\n[*] 전체 학습이 완료되었습니다! 최종 가중치가 '{save_path}'에 저장되었습니다.")
 
 if __name__ == "__main__":
     main()

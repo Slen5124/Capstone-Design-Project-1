@@ -1,6 +1,7 @@
 # Data and Weights (Large files)
 data/
 weights/
+runs/
 
 # Python
 __pycache__/
