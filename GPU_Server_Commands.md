@@ -67,6 +67,9 @@ source /abr/coss32/anaconda3/etc/profile.d/conda.sh
 conda env list
 conda activate alo-train
 
+cd Aloha
+python ./src/train_unet_server.py
+
 python --version
 python -c "import torch; print('GPU 사용 가능:', torch.cuda.is_available())"
 ```
