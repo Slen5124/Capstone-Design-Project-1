@@ -83,6 +83,15 @@ CLASS_COLORS = np.array([
     [149, 165, 166],    # 9: unidentifiable (회색)
 ], dtype=np.uint8)
 
+def imread_unicode(path):
+    """Windows 한글 경로 및 Linux 환경 모두에서 안전하게 이미지를 로드하는 함수"""
+    try:
+        img_array = np.fromfile(path, np.uint8)
+        return cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+    except Exception:
+        return None
+
+
 # =============================================================================
 # 2. 커스텀 데이터셋 (Dataset)
 # =============================================================================
@@ -109,7 +118,7 @@ class SegmentationDataset(Dataset):
         
         # 1) 이미지 읽기 (깨지거나 0바이트인 파일 발견 시 다음 이미지로 자동 우회)
         try:
-            image = cv2.imread(img_path)
+            image = imread_unicode(img_path)
             if image is None or image.size == 0:
                 return self.__getitem__((idx + 1) % len(self.img_paths))
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
