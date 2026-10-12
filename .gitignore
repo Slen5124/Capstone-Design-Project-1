@@ -1,56 +1,95 @@
-# ===== 데이터 (CCTV/개인정보 포함 가능 - 절대 커밋 금지) =====
-data/raw/*
-data/processed/*
+# ============================================================
+# Alo Yoga Project - .gitignore
+# ============================================================
+
+
+# ===== 1. 데이터 (CCTV / 개인정보 포함 가능 - 커밋 금지) =====
+# 원본 이미지, 전처리 데이터, 라벨링 JSON 등
+data/**
+
+# 폴더 구조 유지용 .gitkeep 파일만 허용
+!data/**/
 !data/**/.gitkeep
+
+# 데이터 파일 형식
 *.csv
 *.tsv
 *.parquet
 *.xlsx
 *.db
+*.sqlite
 *.sqlite3
-# 비공개 멘토 미팅 자료·수행계획서 원본
-AloYoga_멘토미팅(영문).pdf
-Development of an AI-Powered Construction Management Support System for Global Retail Stores.pdf
-# 영상 원본
+
+
+# ===== 2. 영상 원본 =====
 *.mp4
 *.avi
 *.mov
 *.mkv
 
-# ===== Python =====
-__pycache__/
-*.py[cod]
-*.egg-info/
-.Python
-build/
-dist/
-.venv/
-venv/
-env/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
 
-# ===== Jupyter =====
-.ipynb_checkpoints/
+# ===== 3. 모델 가중치 / 학습 결과 =====
+weights/
+runs/
 
-# ===== 환경 변수 / 비밀 =====
-.env
-.env.*
-*.key
-*.pem
-credentials.json
-secrets.*
-
-# ===== 모델 가중치 =====
 *.pt
 *.pth
 *.weights
 *.onnx
 
-# ===== IDE / OS =====
+
+# ===== 4. Python =====
+__pycache__/
+*.py[cod]
+*.egg-info/
+.Python
+
+build/
+dist/
+
+.venv/
+venv/
+env/
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+
+# ===== 5. Jupyter Notebook =====
+.ipynb_checkpoints/
+
+
+# ===== 6. 환경 변수 / 인증 정보 / 비밀 =====
+.env
+.env.*
+!.env.example
+
+*.key
+*.pem
+
+credentials.json
+secrets.*
+
+
+# ===== 7. 비공개 프로젝트 문서 =====
+AloYoga_멘토미팅(영문).pdf
+Development of an AI-Powered Construction Management Support System for Global Retail Stores.pdf
+
+
+# ===== 8. 라벨링 도구 / 실행 파일 =====
+*.exe
+
+# 라벨링 JSON은 data/ 내부에 저장하여 관리
+# 프로젝트 설정 JSON은 Git에서 추적 가능하도록 유지
+
+
+# ===== 9. IDE / 에디터 =====
 .vscode/
 .idea/
+
+
+# ===== 10. 운영체제 생성 파일 =====
 .DS_Store
 Thumbs.db
 desktop.ini
