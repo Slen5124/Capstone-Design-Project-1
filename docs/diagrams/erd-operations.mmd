@@ -1,0 +1,61 @@
+%% 이전 설계 참고도. 현재 구현 SQL과의 차이는 README.md 참고.
+erDiagram
+    sites ||..o{ locations : "1:N"
+    locations ||..o{ daily_observations : "1:N"
+    daily_observations ||..o{ analysis_results : "사진 한 장의 분석 결과"
+    model_versions ||..o{ analysis_results : "1:N"
+    stored_files o|..o{ analysis_results : "결과 JSON · 변화 JSON · MD의 파일 FK"
+    stored_files o|..o{ daily_observations : "photo_file_id · missing 관측은 사진 없음"
+    analysis_results o|..o{ analysis_results : "이전 결과"
+    sites {
+        uuid id PK
+        string code UK
+        string name
+        string address
+        string timezone
+    }
+    locations {
+        uuid id PK
+        uuid site_id FK
+        string code
+        string name
+        text description
+    }
+    daily_observations {
+        uuid id PK
+        uuid location_id FK
+        date observation_date
+        timestamptz captured_at
+        uuid photo_file_id FK
+        string status
+        text description
+    }
+    analysis_results {
+        uuid id PK
+        uuid observation_id FK
+        uuid model_version_id FK
+        int run_number
+        uuid result_file_id FK
+        uuid previous_result_id FK
+        uuid changes_file_id FK
+        uuid report_file_id FK
+        string comparison_rule_version
+        string comparison_status
+        string status
+        boolean is_current
+    }
+    model_versions {
+        uuid id PK
+        uuid model_id FK
+        string version
+    }
+    stored_files {
+        uuid id PK
+        uuid schedule_id FK
+        string bucket
+        string object_key
+        string file_kind
+        bigint size_bytes
+        string sha256
+        string upload_status
+    }

@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1420" height="2632" viewBox="0 0 1420 2632">
+<title>이전 설계 참고도 · 전체 파일·데이터 폴더 트리</title><desc>이전 설계 참고도. 현재 구현 SQL과 차이는 같은 폴더 README를 참고. DB 항목과 ZIP 내부 내용은 주석으로 구분.</desc>
+<rect width="1420" height="2632" fill="#f8fafc"/>
+<style>text{font-family:Consolas,"Malgun Gothic",monospace;fill:#172b4d}</style>
+<text x="40" y="55" font-size="30" font-weight="700">전체 파일·데이터 폴더 트리</text>
+<text x="40" y="92" font-size="18">[DB] 항목은 데이터베이스에 저장 · 파일은 S3에 저장 · 예시 이름과 날짜 사용</text>
+<text x="40" y="145" font-size="20" xml:space="preserve">/</text>
+<text x="40" y="174" font-size="20" xml:space="preserve">├─ PROJECT_RULES.md                          ← 최상위 운영 규칙</text>
+<text x="40" y="203" font-size="20" xml:space="preserve">├─ site/</text>
+<text x="40" y="232" font-size="20" xml:space="preserve">│  ├─ site-example/</text>
+<text x="40" y="261" font-size="20" xml:space="preserve">│  │  ├─ config/</text>
+<text x="40" y="290" font-size="20" xml:space="preserve">│  │  │  └─ operations.md                   ← 실행 시간·촬영 장소·사용 모델</text>
+<text x="40" y="319" font-size="20" xml:space="preserve">│  │  ├─ schedule/</text>
+<text x="40" y="348" font-size="20" xml:space="preserve">│  │  │  └─ v001/                           ← 상위 공정표</text>
+<text x="40" y="377" font-size="20" xml:space="preserve">│  │  │     ├─ 공정표 ID (schedule_id)        [DB]</text>
+<text x="40" y="406" font-size="20" xml:space="preserve">│  │  │     ├─ 현장 ID (site_id)              [DB]</text>
+<text x="40" y="435" font-size="20" xml:space="preserve">│  │  │     ├─ 버전 (version)                [DB]</text>
+<text x="40" y="464" font-size="20" xml:space="preserve">│  │  │     ├─ originals/</text>
+<text x="40" y="493" font-size="20" xml:space="preserve">│  │  │     │  ├─ gantt.pdf</text>
+<text x="40" y="522" font-size="20" xml:space="preserve">│  │  │     │  └─ 추가 원본.pdf</text>
+<text x="40" y="551" font-size="20" xml:space="preserve">│  │  │     └─ 작업 목록/                    [DB · 실제 폴더 아님]</text>
+<text x="40" y="580" font-size="20" xml:space="preserve">│  │  │        └─ 각 작업/</text>
+<text x="40" y="609" font-size="20" xml:space="preserve">│  │  │           ├─ ID (id)</text>
+<text x="40" y="638" font-size="20" xml:space="preserve">│  │  │           ├─ 스케줄 ID (schedule_id)</text>
+<text x="40" y="667" font-size="20" xml:space="preserve">│  │  │           ├─ 원본 ID (source_task_id)</text>
+<text x="40" y="696" font-size="20" xml:space="preserve">│  │  │           ├─ 표시 순서 (display_order)</text>
+<text x="40" y="725" font-size="20" xml:space="preserve">│  │  │           ├─ WEEK (week)</text>
+<text x="40" y="754" font-size="20" xml:space="preserve">│  │  │           ├─ 작업명 (task_name)</text>
+<text x="40" y="783" font-size="20" xml:space="preserve">│  │  │           ├─ 시작일 (start)</text>
+<text x="40" y="812" font-size="20" xml:space="preserve">│  │  │           ├─ 종료일 (finish)</text>
+<text x="40" y="841" font-size="20" xml:space="preserve">│  │  │           ├─ 선행 작업 ID (predecessor_id)</text>
+<text x="40" y="870" font-size="20" xml:space="preserve">│  │  │           └─ 후행 작업 ID (successor_id)</text>
+<text x="40" y="899" font-size="20" xml:space="preserve">│  │  └─ daily/</text>
+<text x="40" y="928" font-size="20" xml:space="preserve">│  │     └─ YYYY-MM-DD/                     ← 현장 기준 관측 날짜</text>
+<text x="40" y="957" font-size="20" xml:space="preserve">│  │        └─ sales-floor-01/              ← 고정 촬영 장소</text>
+<text x="40" y="986" font-size="20" xml:space="preserve">│  │           ├─ photo.jpg                 ← 장소별 하루 대표 사진</text>
+<text x="40" y="1015" font-size="20" xml:space="preserve">│  │           └─ analyses/</text>
+<text x="40" y="1044" font-size="20" xml:space="preserve">│  │              ├─ unet/</text>
+<text x="40" y="1073" font-size="20" xml:space="preserve">│  │              │  └─ v001/               ← 학습된 모델 버전</text>
+<text x="40" y="1102" font-size="20" xml:space="preserve">│  │              │     └─ r001/            ← 분석 실행 차수</text>
+<text x="40" y="1131" font-size="20" xml:space="preserve">│  │              │        ├─ result.json</text>
+<text x="40" y="1160" font-size="20" xml:space="preserve">│  │              │        ├─ changes.json</text>
+<text x="40" y="1189" font-size="20" xml:space="preserve">│  │              │        └─ report.md</text>
+<text x="40" y="1218" font-size="20" xml:space="preserve">│  │              ├─ mask-rcnn/</text>
+<text x="40" y="1247" font-size="20" xml:space="preserve">│  │              │  └─ v001/</text>
+<text x="40" y="1276" font-size="20" xml:space="preserve">│  │              │     └─ r001/</text>
+<text x="40" y="1305" font-size="20" xml:space="preserve">│  │              │        ├─ result.json</text>
+<text x="40" y="1334" font-size="20" xml:space="preserve">│  │              │        ├─ changes.json</text>
+<text x="40" y="1363" font-size="20" xml:space="preserve">│  │              │        └─ report.md</text>
+<text x="40" y="1392" font-size="20" xml:space="preserve">│  │              └─ deeplab/</text>
+<text x="40" y="1421" font-size="20" xml:space="preserve">│  │                 └─ v001/</text>
+<text x="40" y="1450" font-size="20" xml:space="preserve">│  │                    └─ r001/</text>
+<text x="40" y="1479" font-size="20" xml:space="preserve">│  │                       ├─ result.json</text>
+<text x="40" y="1508" font-size="20" xml:space="preserve">│  │                       ├─ changes.json</text>
+<text x="40" y="1537" font-size="20" xml:space="preserve">│  │                       └─ report.md</text>
+<text x="40" y="1566" font-size="20" xml:space="preserve">│  └─ 다른 현장/</text>
+<text x="40" y="1595" font-size="20" xml:space="preserve">│     ├─ config/</text>
+<text x="40" y="1624" font-size="20" xml:space="preserve">│     ├─ schedule/</text>
+<text x="40" y="1653" font-size="20" xml:space="preserve">│     └─ daily/</text>
+<text x="40" y="1682" font-size="20" xml:space="preserve">├─ gt/</text>
+<text x="40" y="1711" font-size="20" xml:space="preserve">│  └─ site-example/</text>
+<text x="40" y="1740" font-size="20" xml:space="preserve">│     └─ datasets/</text>
+<text x="40" y="1769" font-size="20" xml:space="preserve">│        └─ v001/</text>
+<text x="40" y="1798" font-size="20" xml:space="preserve">│           ├─ dataset.zip                  ← GT 약 25GB 묶음</text>
+<text x="40" y="1827" font-size="20" xml:space="preserve">│           │  └─ ZIP 내부                 [압축 내부 내용]</text>
+<text x="40" y="1856" font-size="20" xml:space="preserve">│           │     ├─ images/</text>
+<text x="40" y="1885" font-size="20" xml:space="preserve">│           │     ├─ annotations/</text>
+<text x="40" y="1914" font-size="20" xml:space="preserve">│           │     ├─ masks/                 ← 필요한 경우</text>
+<text x="40" y="1943" font-size="20" xml:space="preserve">│           │     └─ manifest.json</text>
+<text x="40" y="1972" font-size="20" xml:space="preserve">│           └─ manifest.json                ← 외부에서도 목록 조회</text>
+<text x="40" y="2001" font-size="20" xml:space="preserve">└─ models/</text>
+<text x="40" y="2030" font-size="20" xml:space="preserve">   ├─ unet/</text>
+<text x="40" y="2059" font-size="20" xml:space="preserve">   │  └─ v001/</text>
+<text x="40" y="2088" font-size="20" xml:space="preserve">   │     ├─ weights.pth</text>
+<text x="40" y="2117" font-size="20" xml:space="preserve">   │     ├─ config.json</text>
+<text x="40" y="2146" font-size="20" xml:space="preserve">   │     ├─ classes.json</text>
+<text x="40" y="2175" font-size="20" xml:space="preserve">   │     └─ metrics.json</text>
+<text x="40" y="2204" font-size="20" xml:space="preserve">   ├─ mask-rcnn/</text>
+<text x="40" y="2233" font-size="20" xml:space="preserve">   │  └─ v001/</text>
+<text x="40" y="2262" font-size="20" xml:space="preserve">   │     ├─ weights.pth</text>
+<text x="40" y="2291" font-size="20" xml:space="preserve">   │     ├─ config.json</text>
+<text x="40" y="2320" font-size="20" xml:space="preserve">   │     ├─ classes.json</text>
+<text x="40" y="2349" font-size="20" xml:space="preserve">   │     └─ metrics.json</text>
+<text x="40" y="2378" font-size="20" xml:space="preserve">   └─ deeplab/</text>
+<text x="40" y="2407" font-size="20" xml:space="preserve">      └─ v001/</text>
+<text x="40" y="2436" font-size="20" xml:space="preserve">         ├─ weights.pth</text>
+<text x="40" y="2465" font-size="20" xml:space="preserve">         ├─ config.json</text>
+<text x="40" y="2494" font-size="20" xml:space="preserve">         ├─ classes.json</text>
+<text x="40" y="2523" font-size="20" xml:space="preserve">         └─ metrics.json</text>
+</svg>

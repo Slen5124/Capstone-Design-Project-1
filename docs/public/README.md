@@ -6,6 +6,7 @@
 |---|---|
 | [백엔드 기능과 DB 구조](BACKEND.md) | FastAPI·SQLAlchemy·PostgreSQL 역할, 파일 저장, 구현 범위 |
 | [GPU 연결과 자료 가져오기](GPU_TRANSFER.md) | 매 사용마다 새 키 연결, 직접 다운로드, 검사, 사용 후 정리 |
+| [폴더 트리·ERD 참고도](../diagrams/README.md) | SVG 미리보기·텍스트/Mermaid·현재 SQL과의 차이 |
 | [PostgreSQL 초기 스키마](../../src/backend/sql/001_initial.sql) | 테이블 10개·관계·인덱스·트리거·검증 제약 |
 
 ## 공개 범위
@@ -37,3 +38,12 @@ psql -h <DB_HOST> -U <DB_USER> -d <DB_NAME> -W -v ON_ERROR_STOP=1 --single-trans
 ## 이 브랜치의 범위
 
 공개 문서와 초기 DB SQL을 공유하는 브랜치다. FastAPI·SQLAlchemy 구현 코드는 로컬과 운영 서버에 있지만 이 공개 브랜치에는 포함하지 않았다. 이 브랜치만 받아서는 API 서비스를 실행할 수 없다.
+
+## 구조도 바로 보기
+
+- [전체 폴더 트리](../diagrams/directory-tree.md)
+- [운영 데이터 ERD](../diagrams/erd-operations.svg)
+- [공정표 ERD](../diagrams/erd-schedule.svg)
+- [GT·모델 ERD](../diagrams/erd-training-models.svg)
+
+그림은 이전 설계 참고용이며 현재 구현과의 차이를 [그림 안내](../diagrams/README.md)에 정리했다.

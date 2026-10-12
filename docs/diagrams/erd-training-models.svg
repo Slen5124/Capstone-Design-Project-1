@@ -1,0 +1,228 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2220" height="1480" viewBox="0 0 2220 1480">
+<title>이전 설계 참고도 · GT · 데이터셋 · 모델 ERD</title><desc>GT는 ZIP과 내부 상대 경로로 관리 · 공개 데이터셋 고정 · 가중치와 학습 출처 연결</desc>
+<style>text{font-family:"Malgun Gothic","Noto Sans KR",Arial,sans-serif;fill:#172b4d}.field{font-family:Consolas,"Malgun Gothic",monospace;font-size:18px}.type{font-family:Consolas,monospace;font-size:15px;fill:#52647b}</style>
+<rect width="2220" height="1480" fill="#f8fafc"/>
+<text x="48" y="58" font-size="30" font-weight="700" style="fill:#172b4d">GT · 데이터셋 · 모델 ERD</text>
+<text x="48" y="95" font-size="17" font-weight="400" style="fill:#52647b">GT는 ZIP과 내부 상대 경로로 관리 · 공개 데이터셋 고정 · 가중치와 학습 출처 연결</text>
+<text x="300" y="445" font-size="16" font-weight="400" style="fill:#475569">촬영 장소 · 미상은 NULL</text>
+<text x="1132" y="500" font-size="16" font-weight="400" style="fill:#475569">GT 목록</text>
+<text x="633" y="635" font-size="16" font-weight="400" style="fill:#475569">GT 버전 연결</text>
+<text x="1918" y="450" font-size="16" font-weight="400" style="fill:#475569">재학습 시 새 버전</text>
+<text x="1470" y="458" font-size="16" font-weight="400" style="fill:#475569">학습에 사용한 데이터셋</text>
+<text x="624" y="933" font-size="16" font-weight="400" style="fill:#475569">GT ZIP 파일</text>
+<text x="1400" y="740" font-size="16" font-weight="400" style="fill:#475569">ZIP · manifest</text>
+<text x="1555" y="1090" font-size="16" font-weight="400" style="fill:#475569">가중치 · 설정 · 클래스 · 평가</text>
+<text x="48" y="1392" font-size="16" font-weight="400" style="fill:#52647b">GT 사진·정답·마스크는 archive_file_id + ZIP 내부 상대 경로로 찾음. 하나의 ZIP을 여러 GT가 공유.</text>
+<text x="48" y="1417" font-size="16" font-weight="400" style="fill:#52647b">검수된 GT만 공개 데이터셋에 포함. split은 train / validation / test. ZIP과 manifest 체크섬 확인.</text>
+<text x="48" y="1442" font-size="16" font-weight="400" style="fill:#52647b">파일 관계선은 여러 FK를 묶어 표시. library_versions와 metrics는 작은 구조화 정보로 DB에 저장.</text>
+<path d="M275,312 L275,560" fill="none" stroke="#64748b" stroke-width="2" stroke-dasharray="7 4"/>
+<g transform="translate(275 312) rotate(90.0)" fill="white" stroke="#475569" stroke-width="2"><path d="M9,-7 V7"/><circle cx="25" cy="0" r="6"/></g>
+<g transform="translate(275 560) rotate(-90.0)" fill="white" stroke="#475569" stroke-width="2"><path d="M2,-8 L18,0 L2,8 M2,0 H18"/><circle cx="29" cy="0" r="6"/></g>
+<path d="M1105,432 L1105,560" fill="none" stroke="#64748b" stroke-width="2" stroke-dasharray="7 4"/>
+<g transform="translate(1105 432) rotate(90.0)" fill="white" stroke="#475569" stroke-width="2"><path d="M9,-7 V7"/><path d="M18,-7 V7"/></g>
+<g transform="translate(1105 560) rotate(-90.0)" fill="white" stroke="#475569" stroke-width="2"><path d="M2,-8 L18,0 L2,8 M2,0 H18"/><circle cx="29" cy="0" r="6"/></g>
+<path d="M560,650 L850,650" fill="none" stroke="#64748b" stroke-width="2" stroke-dasharray="7 4"/>
+<g transform="translate(560 650) rotate(0.0)" fill="white" stroke="#475569" stroke-width="2"><path d="M9,-7 V7"/><path d="M18,-7 V7"/></g>
+<g transform="translate(850 650) rotate(180.0)" fill="white" stroke="#475569" stroke-width="2"><path d="M2,-8 L18,0 L2,8 M2,0 H18"/><circle cx="29" cy="0" r="6"/></g>
+<path d="M1890,312 L1890,560" fill="none" stroke="#64748b" stroke-width="2" stroke-dasharray="7 4"/>
+<g transform="translate(1890 312) rotate(90.0)" fill="white" stroke="#475569" stroke-width="2"><path d="M9,-7 V7"/><path d="M18,-7 V7"/></g>
+<g transform="translate(1890 560) rotate(-90.0)" fill="white" stroke="#475569" stroke-width="2"><path d="M2,-8 L18,0 L2,8 M2,0 H18"/><circle cx="29" cy="0" r="6"/></g>
+<path d="M1360,260 L1450,260 L1450,475 L1550,475 L1550,620 L1620,620" fill="none" stroke="#64748b" stroke-width="2" stroke-dasharray="7 4"/>
+<g transform="translate(1360 260) rotate(0.0)" fill="white" stroke="#475569" stroke-width="2"><path d="M9,-7 V7"/><path d="M18,-7 V7"/></g>
+<g transform="translate(1620 620) rotate(180.0)" fill="white" stroke="#475569" stroke-width="2"><path d="M2,-8 L18,0 L2,8 M2,0 H18"/><circle cx="29" cy="0" r="6"/></g>
+<path d="M1200,1010 L1200,950 L600,950 L600,800 L560,800" fill="none" stroke="#64748b" stroke-width="2" stroke-dasharray="7 4"/>
+<g transform="translate(1200 1010) rotate(-90.0)" fill="white" stroke="#475569" stroke-width="2"><path d="M9,-7 V7"/><path d="M18,-7 V7"/></g>
+<g transform="translate(560 800) rotate(0.0)" fill="white" stroke="#475569" stroke-width="2"><path d="M2,-8 L18,0 L2,8 M2,0 H18"/><circle cx="29" cy="0" r="6"/></g>
+<path d="M1300,1010 L1380,1010 L1380,370 L1360,370" fill="none" stroke="#64748b" stroke-width="2" stroke-dasharray="7 4"/>
+<g transform="translate(1300 1010) rotate(0.0)" fill="white" stroke="#475569" stroke-width="2"><path d="M9,-7 V7"/><circle cx="25" cy="0" r="6"/></g>
+<g transform="translate(1360 370) rotate(0.0)" fill="white" stroke="#475569" stroke-width="2"><path d="M2,-8 L18,0 L2,8 M2,0 H18"/><circle cx="29" cy="0" r="6"/></g>
+<path d="M1340,1150 L1520,1150 L1520,850 L1620,850" fill="none" stroke="#64748b" stroke-width="2" stroke-dasharray="7 4"/>
+<g transform="translate(1340 1150) rotate(0.0)" fill="white" stroke="#475569" stroke-width="2"><path d="M9,-7 V7"/><circle cx="25" cy="0" r="6"/></g>
+<g transform="translate(1620 850) rotate(180.0)" fill="white" stroke="#475569" stroke-width="2"><path d="M2,-8 L18,0 L2,8 M2,0 H18"/><circle cx="29" cy="0" r="6"/></g>
+<g><rect x="60" y="160" width="430" height="152" rx="10" fill="white" stroke="#cbd5e1"/>
+<path d="M70,160 H480 Q490,160 490,170 V208 H60 V170 Q60,160 70,160" fill="#1d4ed8"/>
+<text x="76" y="191" font-size="20" font-weight="700" style="fill:white">locations</text>
+<rect x="61" y="212" width="428" height="30" fill="#f1f5f9"/>
+<text x="74" y="233" font-size="13" font-weight="700" style="fill:#1d4ed8">PK</text>
+<text class="field" x="126" y="233">id</text>
+<text class="type" x="475" y="233" text-anchor="end">uuid</text>
+<text x="74" y="263" font-size="13" font-weight="700" style="fill:#1d4ed8">FK</text>
+<text class="field" x="126" y="263">site_id</text>
+<text class="type" x="475" y="263" text-anchor="end">uuid</text>
+<rect x="61" y="272" width="428" height="30" fill="#f1f5f9"/>
+<text class="field" x="126" y="293">code</text>
+<text class="type" x="475" y="293" text-anchor="end">string</text>
+</g>
+<rect x="56" y="125" width="223" height="27" fill="#f8fafc"/>
+<text x="60" y="147" font-size="17" font-weight="700" style="fill:#1d4ed8">알려진 경우 촬영 장소 연결</text>
+<g><rect x="60" y="560" width="500" height="362" rx="10" fill="white" stroke="#cbd5e1"/>
+<path d="M70,560 H550 Q560,560 560,570 V608 H60 V570 Q60,560 70,560" fill="#0f766e"/>
+<text x="76" y="591" font-size="20" font-weight="700" style="fill:white">gt_samples</text>
+<rect x="61" y="612" width="498" height="30" fill="#f1f5f9"/>
+<text x="74" y="633" font-size="13" font-weight="700" style="fill:#0f766e">PK</text>
+<text class="field" x="126" y="633">id</text>
+<text class="type" x="545" y="633" text-anchor="end">uuid</text>
+<text x="74" y="663" font-size="13" font-weight="700" style="fill:#0f766e">FK</text>
+<text class="field" x="126" y="663">location_id</text>
+<text class="type" x="545" y="663" text-anchor="end">uuid</text>
+<rect x="61" y="672" width="498" height="30" fill="#f1f5f9"/>
+<text class="field" x="126" y="693">captured_at</text>
+<text class="type" x="545" y="693" text-anchor="end">timestamptz</text>
+<text x="74" y="723" font-size="13" font-weight="700" style="fill:#0f766e">FK</text>
+<text class="field" x="126" y="723">archive_file_id</text>
+<text class="type" x="545" y="723" text-anchor="end">uuid</text>
+<rect x="61" y="732" width="498" height="30" fill="#f1f5f9"/>
+<text class="field" x="126" y="753">image_path</text>
+<text class="type" x="545" y="753" text-anchor="end">string</text>
+<text class="field" x="126" y="783">annotation_path</text>
+<text class="type" x="545" y="783" text-anchor="end">string</text>
+<rect x="61" y="792" width="498" height="30" fill="#f1f5f9"/>
+<text class="field" x="126" y="813">mask_path</text>
+<text class="type" x="545" y="813" text-anchor="end">string</text>
+<text class="field" x="126" y="843">label_version</text>
+<text class="type" x="545" y="843" text-anchor="end">string</text>
+<rect x="61" y="852" width="498" height="30" fill="#f1f5f9"/>
+<text class="field" x="126" y="873">source_tool</text>
+<text class="type" x="545" y="873" text-anchor="end">string</text>
+<text class="field" x="126" y="903">review_status</text>
+<text class="type" x="545" y="903" text-anchor="end">string</text>
+</g>
+<rect x="56" y="525" width="149" height="27" fill="#f8fafc"/>
+<text x="60" y="547" font-size="17" font-weight="700" style="fill:#0f766e">학습용 정답 한 건</text>
+<g><rect x="850" y="160" width="510" height="272" rx="10" fill="white" stroke="#cbd5e1"/>
+<path d="M860,160 H1350 Q1360,160 1360,170 V208 H850 V170 Q850,160 860,160" fill="#0f766e"/>
+<text x="866" y="191" font-size="20" font-weight="700" style="fill:white">datasets</text>
+<rect x="851" y="212" width="508" height="30" fill="#f1f5f9"/>
+<text x="864" y="233" font-size="13" font-weight="700" style="fill:#0f766e">PK</text>
+<text class="field" x="916" y="233">id</text>
+<text class="type" x="1345" y="233" text-anchor="end">uuid</text>
+<text class="field" x="916" y="263">name</text>
+<text class="type" x="1345" y="263" text-anchor="end">string</text>
+<rect x="851" y="272" width="508" height="30" fill="#f1f5f9"/>
+<text class="field" x="916" y="293">version</text>
+<text class="type" x="1345" y="293" text-anchor="end">string</text>
+<text x="864" y="323" font-size="13" font-weight="700" style="fill:#0f766e">FK</text>
+<text class="field" x="916" y="323">archive_file_id</text>
+<text class="type" x="1345" y="323" text-anchor="end">uuid</text>
+<rect x="851" y="332" width="508" height="30" fill="#f1f5f9"/>
+<text x="864" y="353" font-size="13" font-weight="700" style="fill:#0f766e">FK</text>
+<text class="field" x="916" y="353">manifest_file_id</text>
+<text class="type" x="1345" y="353" text-anchor="end">uuid</text>
+<text class="field" x="916" y="383">class_map</text>
+<text class="type" x="1345" y="383" text-anchor="end">jsonb</text>
+<rect x="851" y="392" width="508" height="30" fill="#f1f5f9"/>
+<text class="field" x="916" y="413">status</text>
+<text class="type" x="1345" y="413" text-anchor="end">string</text>
+</g>
+<rect x="846" y="125" width="177" height="27" fill="#f8fafc"/>
+<text x="850" y="147" font-size="17" font-weight="700" style="fill:#0f766e">확정된 학습 데이터셋</text>
+<g><rect x="850" y="560" width="510" height="182" rx="10" fill="white" stroke="#cbd5e1"/>
+<path d="M860,560 H1350 Q1360,560 1360,570 V608 H850 V570 Q850,560 860,560" fill="#0f766e"/>
+<text x="866" y="591" font-size="20" font-weight="700" style="fill:white">dataset_items</text>
+<rect x="851" y="612" width="508" height="30" fill="#f1f5f9"/>
+<text x="864" y="633" font-size="13" font-weight="700" style="fill:#0f766e">PK</text>
+<text class="field" x="916" y="633">id</text>
+<text class="type" x="1345" y="633" text-anchor="end">uuid</text>
+<text x="864" y="663" font-size="13" font-weight="700" style="fill:#0f766e">FK</text>
+<text class="field" x="916" y="663">dataset_id</text>
+<text class="type" x="1345" y="663" text-anchor="end">uuid</text>
+<rect x="851" y="672" width="508" height="30" fill="#f1f5f9"/>
+<text x="864" y="693" font-size="13" font-weight="700" style="fill:#0f766e">FK</text>
+<text class="field" x="916" y="693">gt_sample_id</text>
+<text class="type" x="1345" y="693" text-anchor="end">uuid</text>
+<text class="field" x="916" y="723">split</text>
+<text class="type" x="1345" y="723" text-anchor="end">string</text>
+</g>
+<rect x="846" y="525" width="171" height="27" fill="#f8fafc"/>
+<text x="850" y="547" font-size="17" font-weight="700" style="fill:#0f766e">GT 포함 목록과 분할</text>
+<g><rect x="1620" y="160" width="540" height="152" rx="10" fill="white" stroke="#cbd5e1"/>
+<path d="M1630,160 H2150 Q2160,160 2160,170 V208 H1620 V170 Q1620,160 1630,160" fill="#7c3aed"/>
+<text x="1636" y="191" font-size="20" font-weight="700" style="fill:white">models</text>
+<rect x="1621" y="212" width="538" height="30" fill="#f1f5f9"/>
+<text x="1634" y="233" font-size="13" font-weight="700" style="fill:#7c3aed">PK</text>
+<text class="field" x="1686" y="233">id</text>
+<text class="type" x="2145" y="233" text-anchor="end">uuid</text>
+<text x="1634" y="263" font-size="13" font-weight="700" style="fill:#7c3aed">UK</text>
+<text class="field" x="1686" y="263">name</text>
+<text class="type" x="2145" y="263" text-anchor="end">string</text>
+<rect x="1621" y="272" width="538" height="30" fill="#f1f5f9"/>
+<text class="field" x="1686" y="293">description</text>
+<text class="type" x="2145" y="293" text-anchor="end">string</text>
+</g>
+<rect x="1616" y="125" width="269" height="27" fill="#f8fafc"/>
+<text x="1620" y="147" font-size="17" font-weight="700" style="fill:#7c3aed">U-Net · Mask R-CNN · DeepLab</text>
+<g><rect x="1620" y="560" width="540" height="452" rx="10" fill="white" stroke="#cbd5e1"/>
+<path d="M1630,560 H2150 Q2160,560 2160,570 V608 H1620 V570 Q1620,560 1630,560" fill="#7c3aed"/>
+<text x="1636" y="591" font-size="20" font-weight="700" style="fill:white">model_versions</text>
+<rect x="1621" y="612" width="538" height="30" fill="#f1f5f9"/>
+<text x="1634" y="633" font-size="13" font-weight="700" style="fill:#7c3aed">PK</text>
+<text class="field" x="1686" y="633">id</text>
+<text class="type" x="2145" y="633" text-anchor="end">uuid</text>
+<text x="1634" y="663" font-size="13" font-weight="700" style="fill:#7c3aed">FK</text>
+<text class="field" x="1686" y="663">model_id</text>
+<text class="type" x="2145" y="663" text-anchor="end">uuid</text>
+<rect x="1621" y="672" width="538" height="30" fill="#f1f5f9"/>
+<text x="1634" y="693" font-size="13" font-weight="700" style="fill:#7c3aed">FK</text>
+<text class="field" x="1686" y="693">dataset_id</text>
+<text class="type" x="2145" y="693" text-anchor="end">uuid</text>
+<text class="field" x="1686" y="723">version</text>
+<text class="type" x="2145" y="723" text-anchor="end">string</text>
+<rect x="1621" y="732" width="538" height="30" fill="#f1f5f9"/>
+<text class="field" x="1686" y="753">backbone</text>
+<text class="type" x="2145" y="753" text-anchor="end">string</text>
+<text x="1634" y="783" font-size="13" font-weight="700" style="fill:#7c3aed">FK</text>
+<text class="field" x="1686" y="783">weights_file_id</text>
+<text class="type" x="2145" y="783" text-anchor="end">uuid</text>
+<rect x="1621" y="792" width="538" height="30" fill="#f1f5f9"/>
+<text x="1634" y="813" font-size="13" font-weight="700" style="fill:#7c3aed">FK</text>
+<text class="field" x="1686" y="813">config_file_id</text>
+<text class="type" x="2145" y="813" text-anchor="end">uuid</text>
+<text x="1634" y="843" font-size="13" font-weight="700" style="fill:#7c3aed">FK</text>
+<text class="field" x="1686" y="843">class_map_file_id</text>
+<text class="type" x="2145" y="843" text-anchor="end">uuid</text>
+<rect x="1621" y="852" width="538" height="30" fill="#f1f5f9"/>
+<text x="1634" y="873" font-size="13" font-weight="700" style="fill:#7c3aed">FK</text>
+<text class="field" x="1686" y="873">metrics_file_id</text>
+<text class="type" x="2145" y="873" text-anchor="end">uuid</text>
+<text class="field" x="1686" y="903">code_version</text>
+<text class="type" x="2145" y="903" text-anchor="end">string</text>
+<rect x="1621" y="912" width="538" height="30" fill="#f1f5f9"/>
+<text class="field" x="1686" y="933">library_versions</text>
+<text class="type" x="2145" y="933" text-anchor="end">jsonb</text>
+<text class="field" x="1686" y="963">metrics</text>
+<text class="type" x="2145" y="963" text-anchor="end">jsonb</text>
+<rect x="1621" y="972" width="538" height="30" fill="#f1f5f9"/>
+<text class="field" x="1686" y="993">trained_at</text>
+<text class="type" x="2145" y="993" text-anchor="end">timestamptz</text>
+</g>
+<rect x="1616" y="525" width="234" height="27" fill="#f8fafc"/>
+<text x="1620" y="547" font-size="17" font-weight="700" style="fill:#7c3aed">실제로 학습된 모델과 가중치</text>
+<g><rect x="700" y="1010" width="640" height="302" rx="10" fill="white" stroke="#cbd5e1"/>
+<path d="M710,1010 H1330 Q1340,1010 1340,1020 V1058 H700 V1020 Q700,1010 710,1010" fill="#0f766e"/>
+<text x="716" y="1041" font-size="20" font-weight="700" style="fill:white">stored_files</text>
+<rect x="701" y="1062" width="638" height="30" fill="#f1f5f9"/>
+<text x="714" y="1083" font-size="13" font-weight="700" style="fill:#0f766e">PK</text>
+<text class="field" x="766" y="1083">id</text>
+<text class="type" x="1325" y="1083" text-anchor="end">uuid</text>
+<text x="714" y="1113" font-size="13" font-weight="700" style="fill:#0f766e">FK</text>
+<text class="field" x="766" y="1113">schedule_id</text>
+<text class="type" x="1325" y="1113" text-anchor="end">uuid</text>
+<rect x="701" y="1122" width="638" height="30" fill="#f1f5f9"/>
+<text class="field" x="766" y="1143">bucket</text>
+<text class="type" x="1325" y="1143" text-anchor="end">string</text>
+<text class="field" x="766" y="1173">object_key</text>
+<text class="type" x="1325" y="1173" text-anchor="end">string</text>
+<rect x="701" y="1182" width="638" height="30" fill="#f1f5f9"/>
+<text class="field" x="766" y="1203">file_kind</text>
+<text class="type" x="1325" y="1203" text-anchor="end">string</text>
+<text class="field" x="766" y="1233">size_bytes</text>
+<text class="type" x="1325" y="1233" text-anchor="end">bigint</text>
+<rect x="701" y="1242" width="638" height="30" fill="#f1f5f9"/>
+<text class="field" x="766" y="1263">sha256</text>
+<text class="type" x="1325" y="1263" text-anchor="end">string</text>
+<text class="field" x="766" y="1293">upload_status</text>
+<text class="type" x="1325" y="1293" text-anchor="end">string</text>
+</g>
+<rect x="696" y="975" width="324" height="27" fill="#f8fafc"/>
+<text x="700" y="997" font-size="17" font-weight="700" style="fill:#0f766e">GT ZIP · manifest · 모델 파일의 S3 위치</text>
+</svg>
