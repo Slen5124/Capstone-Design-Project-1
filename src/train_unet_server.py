@@ -39,17 +39,25 @@ VIZ_DIR = os.path.join(RUNS_DIR, "visualizations")
 
 IMG_SIZE = (512, 512)
 BATCH_SIZE = 16  # VRAM OOM 방지
-EPOCHS = 25
+EPOCHS = 100
 LEARNING_RATE = 2e-4
 NUM_WORKERS = 4  # 데이터 로딩에 사용할 CPU 프로세스 수 (서버 4, 로컬 1 권장)
-VAL_RATIO = 0.10  # 각 도시별 Validation 데이터 비율 (10%)
 RESUME = True  # True로 설정 시 weights 폴더의 가장 최신 체크포인트부터 이어서 학습
 CHECKPOINT_PATH = ""  # 특정 가중치를 직접 지정할 경우 경로 입력 (비워두면 자동 탐색)
 
 # =============================================================================
+# 데이터 분할 설정 (도시별 층화 분할 / Stratified Split)
+# =============================================================================
+TRAIN_RATIO = 0.80  # 학습(Train) 비율
+VAL_RATIO = 0.10    # 검증(Validation) 비율 - 최고 모델(unet_best.pth) 선정 기준
+TEST_RATIO = 0.10   # 테스트(Test) 비율 - 최종 성능 보고용
+SPLIT_SEED = 42     # 분할 시드 (같은 값이면 항상 같은 이미지가 같은 세트에 배정됨)
+EVAL_TEST_EACH_EPOCH = True  # True: 매 에포크마다 Test Loss/Acc/mIoU도 함께 출력 (에포크당 시간 약 10% 증가)
+
+# =============================================================================
 # 에포크 기록 및 체크포인트 저장 주기 설정
 # =============================================================================
-SAVE_THRESHOLD_EPOCH = 20  # 저장 주기가 전환되는 기준 에포크 (지금은 20)
+SAVE_THRESHOLD_EPOCH = 80  # 저장 주기가 전환되는 기준 에포크 (지금은 20)
 SAVE_INTERVAL_LOW = 5      # 기준 에포크(20) 이하일 때 저장 주기: 5 에포크마다
 SAVE_INTERVAL_HIGH = 1     # 기준 에포크(20) 초과일 때 저장 주기: 1 에포크마다
 
@@ -241,11 +249,18 @@ class UNet(nn.Module):
 # =============================================================================
 # 4. 도시별 데이터 분할 및 시각화 도구 (Utilities & Visualization)
 # =============================================================================
-def split_dataset_by_city(img_dir, val_ratio=0.10, seed=42):
+def split_dataset_by_city(img_dir, train_ratio=0.80, val_ratio=0.10, test_ratio=0.10, seed=42):
     """
-    각 도시(지점)별로 이미지를 묶은 뒤, 도시마다 10%를 균등하게 Validation 세트로 분할
+    각 도시(지점)별로 이미지를 묶은 뒤, 도시마다 동일한 비율로 Train / Val / Test 분할
     (Stratified Sampling / 층화 추출)
+
+    셔플된 순서에서 [앞 val_ratio → Val] [다음 test_ratio → Test] [나머지 → Train] 순으로 자릅니다.
+    파일 목록을 정렬한 뒤 셔플하므로, Windows(로컬)와 Linux(서버)에서 항상 동일한 분할이 나옵니다.
     """
+    total = train_ratio + val_ratio + test_ratio
+    if abs(total - 1.0) > 1e-6:
+        raise ValueError(f"TRAIN/VAL/TEST 비율의 합이 1이 아닙니다: {train_ratio} + {val_ratio} + {test_ratio} = {total}")
+
     all_img_paths = glob.glob(os.path.join(img_dir, "*.jpg"))
     city_groups = {}
     
@@ -262,26 +277,29 @@ def split_dataset_by_city(img_dir, val_ratio=0.10, seed=42):
         city_groups[city_name].append(path)
         
     random.seed(seed)
-    train_paths = []
-    val_paths = []
+    train_paths, val_paths, test_paths = [], [], []
     
-    print("\n" + "=" * 65)
-    print(" [*] 도시별 데이터셋 층화 분할 (Stratified Split 90% : 10%)")
-    print("=" * 65)
+    print("\n" + "=" * 75)
+    print(f" [*] 도시별 데이터셋 층화 분할 (Train {train_ratio:.0%} : Val {val_ratio:.0%} : Test {test_ratio:.0%}, seed={seed})")
+    print("=" * 75)
     for city, paths in sorted(city_groups.items()):
-        paths_copy = list(paths)
+        paths_copy = sorted(paths)  # glob 순서가 OS마다 달라도 동일한 분할이 나오도록 정렬
         random.shuffle(paths_copy)
         n_val = int(len(paths_copy) * val_ratio)
+        n_test = int(len(paths_copy) * test_ratio)
         city_val = paths_copy[:n_val]
-        city_train = paths_copy[n_val:]
+        city_test = paths_copy[n_val:n_val + n_test]
+        city_train = paths_copy[n_val + n_test:]
         
         train_paths.extend(city_train)
         val_paths.extend(city_val)
-        print(f"  - [{city}]: 전체 {len(paths):,}장 -> Train: {len(city_train):,}장 | Val: {len(city_val):,}장")
+        test_paths.extend(city_test)
+        print(f"  - [{city}]: 전체 {len(paths):,}장 -> Train: {len(city_train):,} | Val: {len(city_val):,} | Test: {len(city_test):,}")
         
-    print(f" [*] 총 분할 결과: Train {len(train_paths):,}장 ({100*(1-val_ratio):.0f}%), Val {len(val_paths):,}장 ({100*val_ratio:.0f}%)")
-    print("=" * 65 + "\n")
-    return train_paths, val_paths
+    n_all = len(train_paths) + len(val_paths) + len(test_paths)
+    print(f" [*] 총 분할 결과: Train {len(train_paths):,}장 | Val {len(val_paths):,}장 | Test {len(test_paths):,}장 (합계 {n_all:,}장)")
+    print("=" * 75 + "\n")
+    return train_paths, val_paths, test_paths
 
 
 def mask_to_rgb(mask_2d):
@@ -386,38 +404,87 @@ def save_city_visualizations(model, val_dataset, city_samples, epoch, save_dir, 
             plt.close()
 
 
+def evaluate(model, loader, criterion, device, desc="Eval"):
+    """
+    주어진 데이터셋(Val 또는 Test)에 대해 Loss / Pixel Accuracy / mIoU 를 계산
+    반환값: (avg_loss, pixel_acc(%), miou(%), class_iou 배열(%), 클래스별 IoU 계산 가능 여부 배열)
+    """
+    model.eval()
+    total_loss = 0.0
+    n_samples = 0
+    pixel_correct = 0
+    total_pixels = 0
+    class_intersections = np.zeros(NUM_CLASSES)
+    class_unions = np.zeros(NUM_CLASSES)
+
+    with torch.no_grad():
+        for images, masks in tqdm(loader, desc=desc):
+            images = images.to(device)
+            masks = masks.to(device)
+
+            with torch.cuda.amp.autocast(enabled=(device.type == "cuda")):
+                outputs = model(images)
+                loss = criterion(outputs, masks)
+
+            total_loss += loss.item() * len(images)
+            n_samples += len(images)
+            preds = torch.argmax(outputs, dim=1)
+
+            pixel_correct += (preds == masks).sum().item()
+            total_pixels += masks.numel()
+
+            for c in range(NUM_CLASSES):
+                class_intersections[c] += ((preds == c) & (masks == c)).sum().item()
+                class_unions[c] += ((preds == c) | (masks == c)).sum().item()
+
+    avg_loss = total_loss / max(n_samples, 1)
+    pixel_acc = (pixel_correct / max(total_pixels, 1)) * 100
+    valid_classes = class_unions > 0
+    class_iou = np.zeros(NUM_CLASSES)
+    class_iou[valid_classes] = class_intersections[valid_classes] / class_unions[valid_classes] * 100
+    miou = class_iou[valid_classes].mean() if valid_classes.any() else 0.0
+    return avg_loss, pixel_acc, miou, class_iou, valid_classes
+
+
+def _to_plot_values(values):
+    """history 안의 None(기록 없는 에포크)을 NaN으로 바꿔 그래프에서 빈 구간으로 표시"""
+    return [float('nan') if v is None else v for v in values]
+
+
 def plot_training_curves(history, save_path):
-    """Train Loss, Val Loss, Pixel Acc, mIoU 학습 곡선 그래프 자동 업데이트"""
+    """Train/Val/Test Loss, Pixel Acc, mIoU 학습 곡선 그래프 자동 업데이트"""
     if not HAS_MATPLOTLIB:
         return
     if not history or "epochs" not in history or len(history["epochs"]) == 0:
         return
         
     epochs = history["epochs"]
-    train_losses = history["train_loss"]
-    val_losses = history["val_loss"]
-    pixel_accs = history["val_pixel_acc"]
-    mious = history["val_miou"]
+    has_test = any(v is not None for v in history.get("test_loss", []))
     
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5.5))
     
     # 1) Loss 곡선
-    ax1.plot(epochs, train_losses, marker='o', color='#e74c3c', label='Train Loss', linewidth=2)
-    ax1.plot(epochs, val_losses, marker='s', color='#2980b9', label='Val Loss', linewidth=2)
-    ax1.set_title("Training & Validation Loss", fontsize=13, fontweight='bold')
+    ax1.plot(epochs, _to_plot_values(history["train_loss"]), marker='o', color='#e74c3c', label='Train Loss', linewidth=2)
+    ax1.plot(epochs, _to_plot_values(history["val_loss"]), marker='s', color='#2980b9', label='Val Loss', linewidth=2)
+    if has_test:
+        ax1.plot(epochs, _to_plot_values(history["test_loss"]), marker='x', color='#f39c12', label='Test Loss', linewidth=2)
+    ax1.set_title("Train / Validation / Test Loss", fontsize=13, fontweight='bold')
     ax1.set_xlabel("Epoch", fontsize=11)
     ax1.set_ylabel("Loss", fontsize=11)
     ax1.grid(True, linestyle='--', alpha=0.6)
     ax1.legend(fontsize=11)
     
     # 2) 성능 지표 곡선 (Pixel Acc & mIoU)
-    ax2.plot(epochs, pixel_accs, marker='^', color='#27ae60', label='Val Pixel Acc (%)', linewidth=2)
-    ax2.plot(epochs, mious, marker='d', color='#8e44ad', label='Val mIoU (%)', linewidth=2)
-    ax2.set_title("Validation Accuracy & mIoU", fontsize=13, fontweight='bold')
+    ax2.plot(epochs, _to_plot_values(history["val_pixel_acc"]), marker='^', color='#27ae60', label='Val Pixel Acc (%)', linewidth=2)
+    ax2.plot(epochs, _to_plot_values(history["val_miou"]), marker='d', color='#8e44ad', label='Val mIoU (%)', linewidth=2)
+    if has_test:
+        ax2.plot(epochs, _to_plot_values(history["test_pixel_acc"]), linestyle='--', marker='^', color='#82e0aa', label='Test Pixel Acc (%)', linewidth=1.5)
+        ax2.plot(epochs, _to_plot_values(history["test_miou"]), linestyle='--', marker='d', color='#c39bd3', label='Test mIoU (%)', linewidth=1.5)
+    ax2.set_title("Accuracy & mIoU (Val / Test)", fontsize=13, fontweight='bold')
     ax2.set_xlabel("Epoch", fontsize=11)
     ax2.set_ylabel("Percentage (%)", fontsize=11)
     ax2.grid(True, linestyle='--', alpha=0.6)
-    ax2.legend(fontsize=11)
+    ax2.legend(fontsize=10)
     
     plt.tight_layout()
     plt.savefig(save_path, dpi=130)
@@ -435,14 +502,18 @@ def main():
     os.makedirs(RUNS_DIR, exist_ok=True)
     os.makedirs(VIZ_DIR, exist_ok=True)
     
-    # 1) 데이터셋 도시별 10% 층화 분할 (Stratified Split)
-    train_paths, val_paths = split_dataset_by_city(IMG_DIR, val_ratio=VAL_RATIO, seed=42)
+    # 1) 데이터셋 도시별 층화 분할 (Train / Val / Test)
+    train_paths, val_paths, test_paths = split_dataset_by_city(
+        IMG_DIR, train_ratio=TRAIN_RATIO, val_ratio=VAL_RATIO, test_ratio=TEST_RATIO, seed=SPLIT_SEED
+    )
     
     train_dataset = SegmentationDataset(IMG_DIR, JSON_DIR, CLASS_MAP, IMG_SIZE, img_paths=train_paths)
     val_dataset = SegmentationDataset(IMG_DIR, JSON_DIR, CLASS_MAP, IMG_SIZE, img_paths=val_paths)
+    test_dataset = SegmentationDataset(IMG_DIR, JSON_DIR, CLASS_MAP, IMG_SIZE, img_paths=test_paths)
     
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, num_workers=NUM_WORKERS, pin_memory=True)
     val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS, pin_memory=True)
+    test_loader = DataLoader(test_dataset, batch_size=BATCH_SIZE, shuffle=False, num_workers=NUM_WORKERS, pin_memory=True)
     
     # 도시별 고정 시각화 샘플 4장 선정
     city_samples = select_fixed_city_samples(val_dataset, JSON_DIR)
@@ -458,14 +529,24 @@ def main():
     start_epoch = 1
     best_val_loss = float('inf')
     history_file = os.path.join(RUNS_DIR, "training_history.json")
-    history = {"epochs": [], "train_loss": [], "val_loss": [], "val_pixel_acc": [], "val_miou": []}
+    history_keys = ["train_loss", "val_loss", "val_pixel_acc", "val_miou",
+                    "test_loss", "test_pixel_acc", "test_miou"]
+    history = {"epochs": [], **{k: [] for k in history_keys}}
     
-    if os.path.exists(history_file):
+    # 새로 학습(RESUME=False)할 때는 이전 기록을 불러오지 않고 처음부터 기록
+    if RESUME and os.path.exists(history_file):
         try:
             with open(history_file, 'r', encoding='utf-8') as f:
-                history = json.load(f)
-            if history.get("val_loss"):
-                best_val_loss = min(history["val_loss"])
+                loaded = json.load(f)
+            n_prev = len(loaded.get("epochs", []))
+            # 이전 버전 기록(Test 항목 없음)과 호환: 없는 항목은 None으로 채워 길이를 맞춤
+            for k in history_keys:
+                vals = loaded.get(k, [])
+                loaded[k] = vals + [None] * (n_prev - len(vals))
+            history = loaded
+            prev_val_losses = [v for v in history["val_loss"] if v is not None]
+            if prev_val_losses:
+                best_val_loss = min(prev_val_losses)
         except Exception:
             pass
             
@@ -528,43 +609,26 @@ def main():
         avg_train_loss = train_loss / len(train_dataset)
 
         # -----------------------------
-        # [B] 검증 단계 (Validation)
+        # [B] 검증 단계 (Validation) - 최고 모델 선정 기준
         # -----------------------------
-        model.eval()
-        val_loss = 0.0
-        val_pixel_correct = 0
-        val_total_pixels = 0
-        class_intersections = np.zeros(NUM_CLASSES)
-        class_unions = np.zeros(NUM_CLASSES)
-        
-        with torch.no_grad():
-            val_loop = tqdm(val_loader, desc=f"Val   [{epoch}/{EPOCHS}]")
-            for images, masks in val_loop:
-                images = images.to(device)
-                masks = masks.to(device)
-                
-                with torch.cuda.amp.autocast(enabled=(device.type == "cuda")):
-                    outputs = model(images)
-                    loss = criterion(outputs, masks)
-                
-                val_loss += loss.item() * len(images)
-                preds = torch.argmax(outputs, dim=1)
-                
-                val_pixel_correct += (preds == masks).sum().item()
-                val_total_pixels += masks.numel()
-                
-                for c in range(NUM_CLASSES):
-                    class_intersections[c] += ((preds == c) & (masks == c)).sum().item()
-                    class_unions[c] += ((preds == c) | (masks == c)).sum().item()
-                    
-        avg_val_loss = val_loss / len(val_dataset)
-        val_pixel_acc = (val_pixel_correct / val_total_pixels) * 100
-        valid_classes = class_unions > 0
-        val_miou = np.mean(class_intersections[valid_classes] / class_unions[valid_classes]) * 100
+        avg_val_loss, val_pixel_acc, val_miou, _, _ = evaluate(
+            model, val_loader, criterion, device, desc=f"Val   [{epoch}/{EPOCHS}]"
+        )
+
+        # -----------------------------
+        # [B-2] 테스트 단계 (Test) - 참고용 모니터링 (모델 선정에는 사용하지 않음)
+        # -----------------------------
+        avg_test_loss = test_pixel_acc = test_miou = None
+        if EVAL_TEST_EACH_EPOCH:
+            avg_test_loss, test_pixel_acc, test_miou, _, _ = evaluate(
+                model, test_loader, criterion, device, desc=f"Test  [{epoch}/{EPOCHS}]"
+            )
         
         print(f"\n====> Epoch {epoch} 완료")
         print(f"      Train Loss: {avg_train_loss:.4f}")
         print(f"      Val   Loss: {avg_val_loss:.4f} | Pixel Acc: {val_pixel_acc:.2f}% | mIoU: {val_miou:.2f}%")
+        if EVAL_TEST_EACH_EPOCH:
+            print(f"      Test  Loss: {avg_test_loss:.4f} | Pixel Acc: {test_pixel_acc:.2f}% | mIoU: {test_miou:.2f}%")
         
         # -----------------------------
         # [C] 시각자료 생성 및 이력 기록
@@ -574,6 +638,9 @@ def main():
         history["val_loss"].append(avg_val_loss)
         history["val_pixel_acc"].append(val_pixel_acc)
         history["val_miou"].append(val_miou)
+        history["test_loss"].append(avg_test_loss)
+        history["test_pixel_acc"].append(test_pixel_acc)
+        history["test_miou"].append(test_miou)
         
         with open(history_file, 'w', encoding='utf-8') as f:
             json.dump(history, f, indent=2)

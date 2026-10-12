@@ -150,7 +150,8 @@ def plot_evaluation_trends(results, save_path):
 
 def main():
     parser = argparse.ArgumentParser(description="U-Net 에포크별 정확도 및 겹침 스코어(mIoU / Dice) 평가")
-    parser.add_argument("--samples", type=int, default=None, help="평가할 검증 샘플 수 제한 (예: 500 입력 시 빠른 측정, 기본값: 전체 검증셋)")
+    parser.add_argument("--split", type=str, default="val", choices=["val", "test", "train"], help="평가 대상 데이터셋 (val, test, train 중 선택, 기본값: val)")
+    parser.add_argument("--samples", type=int, default=None, help="평가할 샘플 수 제한 (예: 500 입력 시 빠른 측정, 기본값: 전체 데이터셋)")
     parser.add_argument("--batch_size", type=int, default=16, help="평가 시 배치 크기 (기본값: 16)")
     args = parser.parse_args()
     
@@ -158,6 +159,7 @@ def main():
     print("\n=================================================================")
     print("  [*] U-Net 에포크별 성능 평가 (Accuracy, mIoU, Dice Score)")
     print(f"  사용 디바이스: {device} ({torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'CPU'})")
+    print(f"  평가 대상 세트: {args.split.upper()} (val: 10%, test: 10%, train: 80%)")
     print("=================================================================\n")
     
     # 1. weights 폴더에서 가중치 파일 스캔
@@ -175,20 +177,22 @@ def main():
     for f in ckpt_files:
         print(f"    - {os.path.basename(f)} (Epoch {get_epoch_num(f)})")
         
-    # 2. 검증 데이터셋 준비 (Stratified Split 시드 42로 학습 당시와 100% 동일한 Val set 구성)
-    print("\n[*] 검증 데이터셋을 불러오는 중입니다...")
-    _, val_paths = split_dataset_by_city(IMG_DIR, val_ratio=0.10, seed=42)
+    # 2. 데이터셋 준비 (Stratified Split 시드 42로 학습 당시와 100% 동일한 분할 구성)
+    print(f"\n[*] {args.split.upper()} 데이터셋을 불러오는 중입니다...")
+    train_paths, val_paths, test_paths = split_dataset_by_city(IMG_DIR, seed=42)
+    split_map = {"val": val_paths, "test": test_paths, "train": train_paths}
+    target_paths = split_map[args.split]
     
-    if args.samples and args.samples < len(val_paths):
-        print(f"[*] 빠른 평가를 위해 검증 데이터 중 무작위 {args.samples}장만 사용합니다.")
+    if args.samples and args.samples < len(target_paths):
+        print(f"[*] 빠른 평가를 위해 {args.split} 데이터 중 무작위 {args.samples}장만 사용합니다.")
         np.random.seed(42)
-        val_paths = list(np.random.choice(val_paths, args.samples, replace=False))
+        target_paths = list(np.random.choice(target_paths, args.samples, replace=False))
     else:
-        print(f"[*] 전체 검증 데이터셋 ({len(val_paths):,}장)을 대상으로 평가합니다.")
+        print(f"[*] 전체 {args.split.upper()} 데이터셋 ({len(target_paths):,}장)을 대상으로 평가합니다.")
         
     eval_num_workers = 0 if sys.platform.startswith("win") else 2
-    val_dataset = SegmentationDataset(IMG_DIR, JSON_DIR, CLASS_MAP, IMG_SIZE, img_paths=val_paths)
-    dataloader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, num_workers=eval_num_workers, pin_memory=True)
+    eval_dataset = SegmentationDataset(IMG_DIR, JSON_DIR, CLASS_MAP, IMG_SIZE, img_paths=target_paths)
+    dataloader = DataLoader(eval_dataset, batch_size=args.batch_size, shuffle=False, num_workers=eval_num_workers, pin_memory=True)
     
     # 3. 모델 초기화
     model = UNet(in_channels=3, out_channels=NUM_CLASSES).to(device)
