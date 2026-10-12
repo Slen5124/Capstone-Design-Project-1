@@ -17,10 +17,14 @@ from torch.utils.data import Dataset, DataLoader
 import torchvision.transforms.functional as TF
 from tqdm import tqdm
 
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import matplotlib.patches as mpatches
+try:
+    import matplotlib
+    matplotlib.use('Agg')
+    import matplotlib.pyplot as plt
+    import matplotlib.patches as mpatches
+    HAS_MATPLOTLIB = True
+except ImportError:
+    HAS_MATPLOTLIB = False
 
 # =============================================================================
 # 1. 설정 (Settings)
@@ -313,6 +317,10 @@ def save_city_visualizations(model, val_dataset, city_samples, epoch, save_dir, 
     """
     각 도시별 대표 이미지에 대해 [원본 | 정답 라벨 | 모델 예측 | 오버레이] 비교 시각자료 생성
     """
+    if not HAS_MATPLOTLIB:
+        print("[주의] matplotlib이 설치되어 있지 않아 시각자료 생성을 건너뜁니다. (pip install matplotlib 권장)")
+        return
+
     model.eval()
     os.makedirs(save_dir, exist_ok=True)
     
@@ -371,6 +379,8 @@ def save_city_visualizations(model, val_dataset, city_samples, epoch, save_dir, 
 
 def plot_training_curves(history, save_path):
     """Train Loss, Val Loss, Pixel Acc, mIoU 학습 곡선 그래프 자동 업데이트"""
+    if not HAS_MATPLOTLIB:
+        return
     if not history or "epochs" not in history or len(history["epochs"]) == 0:
         return
         

@@ -16,3 +16,4 @@ sentence-transformers # For local document embeddings
 pydantic
 python-dotenv
 tqdm
+matplotlib
