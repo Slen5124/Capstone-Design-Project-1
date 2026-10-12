@@ -4,6 +4,14 @@ import sys
 # 서버의 ~/.local 폴더 패키지 간섭을 차단하고 가상환경(alo-train) 패키지를 강제 로드
 sys.path = [p for p in sys.path if ".local" not in p]
 
+# Windows 콘솔 한글 인코딩 방지
+if sys.platform.startswith("win"):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+
 import glob
 import json
 import random
@@ -53,6 +61,7 @@ VAL_RATIO = 0.10    # 검증(Validation) 비율 - 최고 모델(unet_best.pth) �
 TEST_RATIO = 0.10   # 테스트(Test) 비율 - 최종 성능 보고용
 SPLIT_SEED = 42     # 분할 시드 (같은 값이면 항상 같은 이미지가 같은 세트에 배정됨)
 EVAL_TEST_EACH_EPOCH = True  # True: 매 에포크마다 Test Loss/Acc/mIoU도 함께 출력 (에포크당 시간 약 10% 증가)
+PRINT_CLASS_IOU = True       # True: 매 에포크 완료 시 클래스별 세부 IoU(겹침 점수) 표 출력
 
 # =============================================================================
 # 에포크 기록 및 체크포인트 저장 주기 설정
@@ -446,6 +455,43 @@ def evaluate(model, loader, criterion, device, desc="Eval"):
     return avg_loss, pixel_acc, miou, class_iou, valid_classes
 
 
+def format_class_iou_table(val_class_iou, test_class_iou=None):
+    """
+    Validation 및 Test 세트의 클래스별 세부 IoU(겹침 점수)를 표 형식으로 정렬하여 출력용 문자열 생성
+    """
+    all_names = ["background"] + CLASSES
+    has_test = test_class_iou is not None
+
+    col_name_w = 26
+    col_iou_w = 14
+
+    if has_test:
+        header_border = f"      +{'-' * (col_name_w + 2)}+{'-' * (col_iou_w + 2)}+{'-' * (col_iou_w + 2)}+"
+        header_title = f"      | {'Class Name':<{col_name_w}} | {'Val IoU (%)':^{col_iou_w}} | {'Test IoU (%)':^{col_iou_w}} |"
+    else:
+        header_border = f"      +{'-' * (col_name_w + 2)}+{'-' * (col_iou_w + 2)}+"
+        header_title = f"      | {'Class Name':<{col_name_w}} | {'Val IoU (%)':^{col_iou_w}} |"
+
+    lines = [
+        "",
+        "      [클래스별 세부 겹침 스코어 (Class-wise IoU)]",
+        header_border,
+        header_title,
+        header_border,
+    ]
+
+    for c, name in enumerate(all_names):
+        v_val = f"{val_class_iou[c]:.2f}%" if val_class_iou is not None else "-"
+        if has_test:
+            t_val = f"{test_class_iou[c]:.2f}%" if test_class_iou is not None else "-"
+            lines.append(f"      | {name:<{col_name_w}} | {v_val:^{col_iou_w}} | {t_val:^{col_iou_w}} |")
+        else:
+            lines.append(f"      | {name:<{col_name_w}} | {v_val:^{col_iou_w}} |")
+
+    lines.append(header_border)
+    return "\n".join(lines)
+
+
 def _to_plot_values(values):
     """history 안의 None(기록 없는 에포크)을 NaN으로 바꿔 그래프에서 빈 구간으로 표시"""
     return [float('nan') if v is None else v for v in values]
@@ -530,7 +576,8 @@ def main():
     best_val_loss = float('inf')
     history_file = os.path.join(RUNS_DIR, "training_history.json")
     history_keys = ["train_loss", "val_loss", "val_pixel_acc", "val_miou",
-                    "test_loss", "test_pixel_acc", "test_miou"]
+                    "test_loss", "test_pixel_acc", "test_miou",
+                    "val_class_iou", "test_class_iou"]
     history = {"epochs": [], **{k: [] for k in history_keys}}
     
     # 새로 학습(RESUME=False)할 때는 이전 기록을 불러오지 않고 처음부터 기록
@@ -611,16 +658,16 @@ def main():
         # -----------------------------
         # [B] 검증 단계 (Validation) - 최고 모델 선정 기준
         # -----------------------------
-        avg_val_loss, val_pixel_acc, val_miou, _, _ = evaluate(
+        avg_val_loss, val_pixel_acc, val_miou, val_class_iou, _ = evaluate(
             model, val_loader, criterion, device, desc=f"Val   [{epoch}/{EPOCHS}]"
         )
 
         # -----------------------------
         # [B-2] 테스트 단계 (Test) - 참고용 모니터링 (모델 선정에는 사용하지 않음)
         # -----------------------------
-        avg_test_loss = test_pixel_acc = test_miou = None
+        avg_test_loss = test_pixel_acc = test_miou = test_class_iou = None
         if EVAL_TEST_EACH_EPOCH:
-            avg_test_loss, test_pixel_acc, test_miou, _, _ = evaluate(
+            avg_test_loss, test_pixel_acc, test_miou, test_class_iou, _ = evaluate(
                 model, test_loader, criterion, device, desc=f"Test  [{epoch}/{EPOCHS}]"
             )
         
@@ -630,9 +677,19 @@ def main():
         if EVAL_TEST_EACH_EPOCH:
             print(f"      Test  Loss: {avg_test_loss:.4f} | Pixel Acc: {test_pixel_acc:.2f}% | mIoU: {test_miou:.2f}%")
         
+        if PRINT_CLASS_IOU:
+            print(format_class_iou_table(val_class_iou, test_class_iou))
+        
         # -----------------------------
         # [C] 시각자료 생성 및 이력 기록
         # -----------------------------
+        all_class_names = ["background"] + CLASSES
+        val_class_iou_dict = {name: round(float(val_class_iou[c]), 2) for c, name in enumerate(all_class_names)}
+        test_class_iou_dict = (
+            {name: round(float(test_class_iou[c]), 2) for c, name in enumerate(all_class_names)}
+            if test_class_iou is not None else None
+        )
+
         history["epochs"].append(epoch)
         history["train_loss"].append(avg_train_loss)
         history["val_loss"].append(avg_val_loss)
@@ -641,6 +698,8 @@ def main():
         history["test_loss"].append(avg_test_loss)
         history["test_pixel_acc"].append(test_pixel_acc)
         history["test_miou"].append(test_miou)
+        history["val_class_iou"].append(val_class_iou_dict)
+        history["test_class_iou"].append(test_class_iou_dict)
         
         with open(history_file, 'w', encoding='utf-8') as f:
             json.dump(history, f, indent=2)
