@@ -248,3 +248,4 @@ mask = cv2.resize(mask, (512, 512), interpolation=cv2.INTER_NEAREST)
 **작성자**: Aloha 프로젝트 AI 비전 연구팀 (강태웅)  
 **최종 업데이트**: 2026년 10월 12일  
 **관련 스크립트**: [`src/batch_preprocess_sam.py`](file:///c:/Users/2233w/Desktop/3-2/Aloha/src/batch_preprocess_sam.py), [`src/train_unet_server.py`](file:///c:/Users/2233w/Desktop/3-2/Aloha/src/train_unet_server.py)
+
