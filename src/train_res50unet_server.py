@@ -210,6 +210,7 @@ def build_model(encoder_weights=ENCODER_WEIGHTS):
         print("       conda activate alo-train 후 다음을 실행하세요: pip install segmentation-models-pytorch")
         raise
 
+    # 1차 시도 (인터넷 또는 기존 캐시)
     try:
         return smp.Unet(
             encoder_name=ENCODER_NAME,
@@ -218,9 +219,22 @@ def build_model(encoder_weights=ENCODER_WEIGHTS):
             classes=NUM_CLASSES,
         )
     except Exception as e:
-        print(f"[오류] ImageNet 사전학습 가중치를 불러오지 못했습니다: {e}")
-        print("       GPU 노드에서 인터넷이 막혀 있다면, 로그인 서버(인터넷 가능)에서 먼저 한 번 실행해")
-        print("       가중치를 캐시(~/.cache)에 내려받은 뒤 다시 실행하세요.")
+        # 인터넷이 차단된 GPU 노드일 경우 캐시 오프라인 로드 재시도
+        try:
+            os.environ["HF_HUB_OFFLINE"] = "1"
+            return smp.Unet(
+                encoder_name=ENCODER_NAME,
+                encoder_weights=encoder_weights,
+                in_channels=3,
+                classes=NUM_CLASSES,
+            )
+        except Exception:
+            pass
+
+        print(f"\n[오류] ImageNet 사전학습 가중치를 불러오지 못했습니다: {e}")
+        print("       원인: GPU 연산 노드(DIS06 등)는 외부 인터넷이 차단되어 있어 다운로드가 불가합니다.")
+        print("       해결: 인터넷이 되는 로그인 서버(ABRM02)에서 아래 명령어를 1회 실행하여 가중치를 먼저 캐시하세요:")
+        print("       python -c \"import segmentation_models_pytorch as smp; smp.Unet('resnet50', encoder_weights='imagenet')\"\n")
         raise
 
 
