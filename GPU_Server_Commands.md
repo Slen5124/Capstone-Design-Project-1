@@ -41,7 +41,7 @@ squeue -u coss32
 ## 3. GPU 할당 — 로그인 서버 ABRM02
 
 ```bash
-srun -p p02 --gres=gpu:1 --cpus-per-task=4 --mem=32G --time=04:00:00 --job-name=taeung-gpu --pty bash
+srun -p p02 --gres=gpu:1 --cpus-per-task=4 --mem=32G --time=18:00:00 --job-name=taeung-gpu --pty bash
 ```
 
 GPU 1개·CPU 4개·시스템 RAM 32GB를 최대 4시간 요청해요.
@@ -72,6 +72,23 @@ python ./src/train_unet_server.py
 
 python --version
 python -c "import torch; print('GPU 사용 가능:', torch.cuda.is_available())"
+```
+
+### Res50-UNet (ImageNet 사전학습) 학습
+
+처음 한 번만 패키지를 설치하세요.
+
+```bash
+conda activate alo-train
+pip install segmentation-models-pytorch
+```
+
+도시 폴더 분할(Train: Costa_Mesa+Brea / Val: Las_Vegas / Test: Venice)로 학습해요.
+결과는 `weights/res50_unet/`, `runs/res50_unet/`에 저장돼요.
+
+```bash
+cd ~/Aloha
+python ./src/train_res50unet_server.py
 ```
 
 이 GPU 셸에서 본인의 학습 명령을 실행하세요.
