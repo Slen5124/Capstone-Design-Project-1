@@ -15,6 +15,7 @@ if sys.platform.startswith("win"):
 import glob
 import json
 import random
+from datetime import datetime
 import cv2
 import numpy as np
 import torch
@@ -49,7 +50,7 @@ CKPT_PREFIX = "res50unet_epoch_"  # 체크포인트 파일명: res50unet_epoch_<
 
 IMG_SIZE = (512, 512)
 BATCH_SIZE = 16          # VRAM 부족(OOM) 시 8로 낮추세요
-EPOCHS = 50
+EPOCHS = 100
 LEARNING_RATE = 1e-4     # 사전학습 인코더를 미세조정하므로 일반 U-Net(2e-4)보다 낮게 설정
 NUM_WORKERS = 4          # 데이터 로딩에 사용할 CPU 프로세스 수 (서버 4, 로컬 1 권장)
 USE_AUGMENTATION = True  # True: 학습 시 좌우 반전(Horizontal Flip) 증강 적용 (도시 간 일반화에 도움)
@@ -73,13 +74,13 @@ TRAIN_CITIES = ["Costa_Mesa", "Brea"]
 VAL_CITIES = ["Las_Vegas"]     # 최고 모델(best) 선정 기준
 TEST_CITIES = ["Venice"]       # 처음 보는 현장에 대한 최종 일반화 성능 보고용
 EVAL_TEST_EACH_EPOCH = True    # True: 매 에포크마다 Test Loss/Acc/mIoU도 함께 출력
-PRINT_CLASS_IOU = True         # True: 매 에포크 완료 시 클래스별 세부 IoU(겹침 점수) 표 출력
+PRINT_CLASS_IOU = False        # True: 매 에포크 완료 시 클래스별 세부 IoU(겹침 점수) 표 출력
 VIZ_SAMPLES_PER_SET = 2        # 시각화용으로 Val/Test 세트에서 각각 고정 추적할 샘플 수
 
 # =============================================================================
 # 에포크 기록 및 체크포인트 저장 주기 설정
 # =============================================================================
-SAVE_THRESHOLD_EPOCH = 30  # 저장 주기가 전환되는 기준 에포크
+SAVE_THRESHOLD_EPOCH = 80  # 저장 주기가 전환되는 기준 에포크
 SAVE_INTERVAL_LOW = 5      # 기준 에포크 이하일 때 저장 주기: 5 에포크마다
 SAVE_INTERVAL_HIGH = 1     # 기준 에포크 초과일 때 저장 주기: 1 에포크마다
 
@@ -463,6 +464,124 @@ def plot_training_curves(history, save_path):
     plt.close()
 
 
+def update_epoch_summary_txt(history, save_path, model_name="Res50-UNet", data_info=None):
+    """
+    100+ 에포크 학습 시에도 메모장(notepad)으로 전체 진행 추이와 최고 성능을
+    한눈에 스크롤하며 일괄 확인할 수 있도록 1행 1에포크 형식의 요약 표를 작성/갱신합니다.
+    (Windows 메모장 호환을 위해 UTF-8 with BOM(utf-8-sig) 인코딩 사용)
+    """
+    if not history or not history.get("epochs"):
+        return
+
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    has_test = any(v is not None for v in history.get("test_loss", []))
+
+    lines = []
+    lines.append("=" * 130)
+    lines.append(f"  [{model_name} 전체 에포크 학습 결과 일괄 요약표 (Epoch Summary Table)]")
+    lines.append(f"  - 최근 갱신 시각: {now_str}")
+    if data_info:
+        for k, v in data_info.items():
+            lines.append(f"  - {k:<15}: {v}")
+    lines.append("=" * 130)
+
+    if has_test:
+        header = f"{'Epoch':^7} | {'Train Loss':^12} | {'Val Loss':^10} | {'Val Acc':^10} | {'Val mIoU':^10} | {'Test Loss':^10} | {'Test Acc':^10} | {'Test mIoU':^10} | {'비고 (Best 갱신)':<22}"
+        sep    = f"{'-'*7}-+-{'-'*12}-+-{'-'*10}-+-{'-'*10}-+-{'-'*10}-+-{'-'*10}-+-{'-'*10}-+-{'-'*10}-+-{'-'*22}"
+    else:
+        header = f"{'Epoch':^7} | {'Train Loss':^12} | {'Val Loss':^10} | {'Val Acc':^10} | {'Val mIoU':^10} | {'비고 (Best 갱신)':<25}"
+        sep    = f"{'-'*7}-+-{'-'*12}-+-{'-'*10}-+-{'-'*10}-+-{'-'*10}-+-{'-'*25}"
+
+    lines.append(header)
+    lines.append(sep)
+
+    best_val_loss = float('inf')
+    best_loss_ep = None
+    best_val_miou = -1.0
+    best_miou_ep = None
+
+    epochs = history["epochs"]
+    n_records = len(epochs)
+
+    for i in range(n_records):
+        ep = epochs[i]
+        tr_loss = history["train_loss"][i]
+        va_loss = history["val_loss"][i]
+        va_acc = history["val_pixel_acc"][i]
+        va_miou = history["val_miou"][i]
+
+        te_loss = history["test_loss"][i] if has_test else None
+        te_acc = history["test_pixel_acc"][i] if has_test else None
+        te_miou = history["test_miou"][i] if has_test else None
+
+        notes = []
+        if va_loss is not None and va_loss < best_val_loss:
+            best_val_loss = va_loss
+            best_loss_ep = ep
+            notes.append("★Best Loss")
+        if va_miou is not None and va_miou > best_val_miou:
+            best_val_miou = va_miou
+            best_miou_ep = ep
+            notes.append("★Best mIoU")
+
+        note_str = " ".join(notes)
+        tr_str = f"{tr_loss:.4f}" if tr_loss is not None else "-"
+        va_l_str = f"{va_loss:.4f}" if va_loss is not None else "-"
+        va_a_str = f"{va_acc:.2f}%" if va_acc is not None else "-"
+        va_m_str = f"{va_miou:.2f}%" if va_miou is not None else "-"
+
+        if has_test:
+            te_l_str = f"{te_loss:.4f}" if te_loss is not None else "-"
+            te_a_str = f"{te_acc:.2f}%" if te_acc is not None else "-"
+            te_m_str = f"{te_miou:.2f}%" if te_miou is not None else "-"
+            row = f"{ep:^7d} | {tr_str:^12} | {va_l_str:^10} | {va_a_str:^10} | {va_m_str:^10} | {te_l_str:^10} | {te_a_str:^10} | {te_m_str:^10} | {note_str:<22}"
+        else:
+            row = f"{ep:^7d} | {tr_str:^12} | {va_l_str:^10} | {va_a_str:^10} | {va_m_str:^10} | {note_str:<25}"
+        lines.append(row)
+
+    lines.append(sep)
+    lines.append("")
+    lines.append("  [전체 기간 최고 성능 달성 에포크]")
+    if best_loss_ep is not None:
+        lines.append(f"  - 최저 Val Loss 달성: Epoch {best_loss_ep:>3d} (Loss: {best_val_loss:.4f})  -> 'res50unet_best.pth' 기준")
+    if best_miou_ep is not None:
+        lines.append(f"  - 최고 Val mIoU 달성: Epoch {best_miou_ep:>3d} (mIoU: {best_val_miou:.2f}%)")
+    lines.append("=" * 130)
+
+    with open(save_path, "w", encoding="utf-8-sig") as f:
+        f.write("\n".join(lines) + "\n")
+
+
+def append_epoch_detail_txt(save_path, epoch, total_epochs,
+                            train_loss, val_loss, val_acc, val_miou,
+                            test_loss=None, test_acc=None, test_miou=None,
+                            val_class_iou=None, test_class_iou=None,
+                            is_best=False):
+    """
+    각 에포크별 세부 지표와 10개 클래스별 세부 IoU(겹침 점수) 표를
+    메모장용 텍스트 파일(epoch_details.txt)에 누적 기록합니다.
+    """
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    lines = []
+    lines.append("=" * 80)
+    best_mark = "  ★ [최고 성능 갱신: Best Val Loss]" if is_best else ""
+    lines.append(f"[Epoch {epoch:03d} / {total_epochs:03d}]  기록 일시: {now_str}{best_mark}")
+    lines.append("-" * 80)
+    lines.append(f"  Train Loss     : {train_loss:.4f}")
+    lines.append(f"  Val Loss       : {val_loss:.4f} | Pixel Acc: {val_acc:.2f}% | mIoU: {val_miou:.2f}%")
+    if test_loss is not None:
+        lines.append(f"  Test Loss      : {test_loss:.4f} | Pixel Acc: {test_acc:.2f}% | mIoU: {test_miou:.2f}%")
+
+    if val_class_iou is not None:
+        lines.append(format_class_iou_table(val_class_iou, test_class_iou))
+    lines.append("=" * 80)
+    lines.append("\n")
+
+    mode = "a" if os.path.exists(save_path) else "w"
+    with open(save_path, mode, encoding="utf-8-sig") as f:
+        f.write("\n".join(lines))
+
+
 def find_latest_checkpoint():
     """WEIGHTS_DIR 에서 가장 큰 에포크 번호의 체크포인트 경로와 에포크 번호를 반환"""
     best_path, best_epoch = None, 0
@@ -622,11 +741,32 @@ def main():
         plot_training_curves(history, os.path.join(RUNS_DIR, "training_curves.png"))
 
         # 최고 성능(Best Val Loss) 모델 별도 저장
-        if avg_val_loss < best_val_loss:
+        is_best_loss = (avg_val_loss < best_val_loss)
+        if is_best_loss:
             best_val_loss = avg_val_loss
             best_ckpt_path = os.path.join(WEIGHTS_DIR, "res50unet_best.pth")
             torch.save(model.state_dict(), best_ckpt_path)
             print(f"[*] 🌟 [최고 성능 갱신] Best Val Loss: {best_val_loss:.4f} -> '{best_ckpt_path}' 저장 완료!")
+
+        # [C-2] 메모장 파일(.txt) 저장 (100+ 에포크 일괄 확인용 요약 표 + 세부 로그)
+        summary_txt_path = os.path.join(RUNS_DIR, "epoch_summary.txt")
+        details_txt_path = os.path.join(RUNS_DIR, "epoch_details.txt")
+        data_info = {
+            "모델 아키텍처": f"U-Net (encoder={ENCODER_NAME}, weights={ENCODER_WEIGHTS})",
+            "Train 데이터셋": f"{', '.join(TRAIN_CITIES)} ({len(train_dataset):,}장)",
+            "Val 데이터셋  ": f"{', '.join(VAL_CITIES)} ({len(val_dataset):,}장)",
+            "Test 데이터셋 ": f"{', '.join(TEST_CITIES)} ({len(test_dataset):,}장)" if use_test else "미사용",
+            "배치 크기     ": f"{BATCH_SIZE}",
+            "학습률(LR)    ": f"{LEARNING_RATE}",
+        }
+        update_epoch_summary_txt(history, summary_txt_path, model_name="Res50-UNet", data_info=data_info)
+        append_epoch_detail_txt(
+            details_txt_path, epoch, EPOCHS,
+            avg_train_loss, avg_val_loss, val_pixel_acc, val_miou,
+            avg_test_loss, test_pixel_acc, test_miou,
+            val_class_iou, test_class_iou,
+            is_best=is_best_loss
+        )
 
         # [D] 동적 주기 기반 체크포인트 및 시각자료 저장
         save_interval = SAVE_INTERVAL_LOW if epoch <= SAVE_THRESHOLD_EPOCH else SAVE_INTERVAL_HIGH

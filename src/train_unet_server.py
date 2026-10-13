@@ -16,6 +16,7 @@ import glob
 import json
 import random
 import time
+from datetime import datetime
 import cv2
 import numpy as np
 import torch
@@ -537,6 +538,124 @@ def plot_training_curves(history, save_path):
     plt.close()
 
 
+def update_epoch_summary_txt(history, save_path, model_name="U-Net", data_info=None):
+    """
+    100+ 에포크 학습 시에도 메모장(notepad)으로 전체 진행 추이와 최고 성능을
+    한눈에 스크롤하며 일괄 확인할 수 있도록 1행 1에포크 형식의 요약 표를 작성/갱신합니다.
+    (Windows 메모장 호환을 위해 UTF-8 with BOM(utf-8-sig) 인코딩 사용)
+    """
+    if not history or not history.get("epochs"):
+        return
+
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    has_test = any(v is not None for v in history.get("test_loss", []))
+
+    lines = []
+    lines.append("=" * 130)
+    lines.append(f"  [{model_name} 전체 에포크 학습 결과 일괄 요약표 (Epoch Summary Table)]")
+    lines.append(f"  - 최근 갱신 시각: {now_str}")
+    if data_info:
+        for k, v in data_info.items():
+            lines.append(f"  - {k:<15}: {v}")
+    lines.append("=" * 130)
+
+    if has_test:
+        header = f"{'Epoch':^7} | {'Train Loss':^12} | {'Val Loss':^10} | {'Val Acc':^10} | {'Val mIoU':^10} | {'Test Loss':^10} | {'Test Acc':^10} | {'Test mIoU':^10} | {'비고 (Best 갱신)':<22}"
+        sep    = f"{'-'*7}-+-{'-'*12}-+-{'-'*10}-+-{'-'*10}-+-{'-'*10}-+-{'-'*10}-+-{'-'*10}-+-{'-'*10}-+-{'-'*22}"
+    else:
+        header = f"{'Epoch':^7} | {'Train Loss':^12} | {'Val Loss':^10} | {'Val Acc':^10} | {'Val mIoU':^10} | {'비고 (Best 갱신)':<25}"
+        sep    = f"{'-'*7}-+-{'-'*12}-+-{'-'*10}-+-{'-'*10}-+-{'-'*10}-+-{'-'*25}"
+
+    lines.append(header)
+    lines.append(sep)
+
+    best_val_loss = float('inf')
+    best_loss_ep = None
+    best_val_miou = -1.0
+    best_miou_ep = None
+
+    epochs = history["epochs"]
+    n_records = len(epochs)
+
+    for i in range(n_records):
+        ep = epochs[i]
+        tr_loss = history["train_loss"][i]
+        va_loss = history["val_loss"][i]
+        va_acc = history["val_pixel_acc"][i]
+        va_miou = history["val_miou"][i]
+
+        te_loss = history["test_loss"][i] if has_test else None
+        te_acc = history["test_pixel_acc"][i] if has_test else None
+        te_miou = history["test_miou"][i] if has_test else None
+
+        notes = []
+        if va_loss is not None and va_loss < best_val_loss:
+            best_val_loss = va_loss
+            best_loss_ep = ep
+            notes.append("★Best Loss")
+        if va_miou is not None and va_miou > best_val_miou:
+            best_val_miou = va_miou
+            best_miou_ep = ep
+            notes.append("★Best mIoU")
+
+        note_str = " ".join(notes)
+        tr_str = f"{tr_loss:.4f}" if tr_loss is not None else "-"
+        va_l_str = f"{va_loss:.4f}" if va_loss is not None else "-"
+        va_a_str = f"{va_acc:.2f}%" if va_acc is not None else "-"
+        va_m_str = f"{va_miou:.2f}%" if va_miou is not None else "-"
+
+        if has_test:
+            te_l_str = f"{te_loss:.4f}" if te_loss is not None else "-"
+            te_a_str = f"{te_acc:.2f}%" if te_acc is not None else "-"
+            te_m_str = f"{te_miou:.2f}%" if te_miou is not None else "-"
+            row = f"{ep:^7d} | {tr_str:^12} | {va_l_str:^10} | {va_a_str:^10} | {va_m_str:^10} | {te_l_str:^10} | {te_a_str:^10} | {te_m_str:^10} | {note_str:<22}"
+        else:
+            row = f"{ep:^7d} | {tr_str:^12} | {va_l_str:^10} | {va_a_str:^10} | {va_m_str:^10} | {note_str:<25}"
+        lines.append(row)
+
+    lines.append(sep)
+    lines.append("")
+    lines.append("  [전체 기간 최고 성능 달성 에포크]")
+    if best_loss_ep is not None:
+        lines.append(f"  - 최저 Val Loss 달성: Epoch {best_loss_ep:>3d} (Loss: {best_val_loss:.4f})  -> 'unet_best.pth' 기준")
+    if best_miou_ep is not None:
+        lines.append(f"  - 최고 Val mIoU 달성: Epoch {best_miou_ep:>3d} (mIoU: {best_val_miou:.2f}%)")
+    lines.append("=" * 130)
+
+    with open(save_path, "w", encoding="utf-8-sig") as f:
+        f.write("\n".join(lines) + "\n")
+
+
+def append_epoch_detail_txt(save_path, epoch, total_epochs,
+                            train_loss, val_loss, val_acc, val_miou,
+                            test_loss=None, test_acc=None, test_miou=None,
+                            val_class_iou=None, test_class_iou=None,
+                            is_best=False):
+    """
+    각 에포크별 세부 지표와 10개 클래스별 세부 IoU(겹침 점수) 표를
+    메모장용 텍스트 파일(epoch_details.txt)에 누적 기록합니다.
+    """
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    lines = []
+    lines.append("=" * 80)
+    best_mark = "  ★ [최고 성능 갱신: Best Val Loss]" if is_best else ""
+    lines.append(f"[Epoch {epoch:03d} / {total_epochs:03d}]  기록 일시: {now_str}{best_mark}")
+    lines.append("-" * 80)
+    lines.append(f"  Train Loss     : {train_loss:.4f}")
+    lines.append(f"  Val Loss       : {val_loss:.4f} | Pixel Acc: {val_acc:.2f}% | mIoU: {val_miou:.2f}%")
+    if test_loss is not None:
+        lines.append(f"  Test Loss      : {test_loss:.4f} | Pixel Acc: {test_acc:.2f}% | mIoU: {test_miou:.2f}%")
+
+    if val_class_iou is not None:
+        lines.append(format_class_iou_table(val_class_iou, test_class_iou))
+    lines.append("=" * 80)
+    lines.append("\n")
+
+    mode = "a" if os.path.exists(save_path) else "w"
+    with open(save_path, mode, encoding="utf-8-sig") as f:
+        f.write("\n".join(lines))
+
+
 # =============================================================================
 # 5. 학습 루프 (Training Loop)
 # =============================================================================
@@ -725,11 +844,32 @@ def main():
             print(f"[*] [에포크 알림] Epoch {epoch} 완료 (체크포인트 저장은 {save_interval} 에포크 주기로 진행됩니다)")
         
         # 최고 성능(Best Val Loss) 모델 별도 저장
-        if avg_val_loss < best_val_loss:
+        is_best_loss = (avg_val_loss < best_val_loss)
+        if is_best_loss:
             best_val_loss = avg_val_loss
             best_ckpt_path = os.path.join(WEIGHTS_DIR, "unet_best.pth")
             torch.save(model.state_dict(), best_ckpt_path)
             print(f"[*] 🌟 [최고 성능 갱신] Best Val Loss: {best_val_loss:.4f} -> '{best_ckpt_path}' 저장 완료!")
+
+        # [C-2] 메모장 파일(.txt) 저장 (100+ 에포크 일괄 확인용 요약 표 + 세부 로그)
+        summary_txt_path = os.path.join(RUNS_DIR, "epoch_summary.txt")
+        details_txt_path = os.path.join(RUNS_DIR, "epoch_details.txt")
+        data_info = {
+            "모델 아키텍처": "Standard U-Net (PyTorch Custom)",
+            "Train 데이터셋": f"{len(train_dataset):,}장 ({TRAIN_RATIO*100:.0f}%)",
+            "Val 데이터셋  ": f"{len(val_dataset):,}장 ({VAL_RATIO*100:.0f}%)",
+            "Test 데이터셋 ": f"{len(test_dataset):,}장 ({TEST_RATIO*100:.0f}%)" if EVAL_TEST_EACH_EPOCH else "미사용",
+            "배치 크기     ": f"{BATCH_SIZE}",
+            "학습률(LR)    ": f"{LEARNING_RATE}",
+        }
+        update_epoch_summary_txt(history, summary_txt_path, model_name="Standard U-Net", data_info=data_info)
+        append_epoch_detail_txt(
+            details_txt_path, epoch, EPOCHS,
+            avg_train_loss, avg_val_loss, val_pixel_acc, val_miou,
+            avg_test_loss, test_pixel_acc, test_miou,
+            val_class_iou, test_class_iou,
+            is_best=is_best_loss
+        )
 
     # 최종 가중치 저장
     save_path = os.path.join(WEIGHTS_DIR, "unet_final.pth")
