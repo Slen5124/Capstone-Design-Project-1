@@ -41,7 +41,7 @@ squeue -u coss32
 ## 3. GPU 할당 — 로그인 서버 ABRM02
 
 ```bash
-srun -p p02 --gres=gpu:1 --cpus-per-task=4 --mem=32G --time=18:00:00 --job-name=taeung-gpu --pty bash
+srun -p p02 --gres=gpu:1 --cpus-per-task=4 --mem=32G --time=48:00:00 --job-name=taeung-gpu --pty bash
 ```
 
 GPU 1개·CPU 4개·시스템 RAM 32GB를 최대 4시간 요청해요.
