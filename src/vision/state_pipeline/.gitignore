@@ -1,0 +1,20 @@
+# 이 폴더 전용 규칙 (저장소 루트 .gitignore 에 추가로 적용)
+# 루트 규칙이 *.html 을 막으므로, 검수 화면 코드만 다시 포함
+!vision_preprocessing/review_static/*.html
+!qa_v2/review.html
+
+# 실행 중 생기는 로컬 데이터·결과 (절대 커밋 금지)
+.venv/
+Data/
+automatic_results/
+automatic_reference_v3/
+state_preprocessing_results/
+corrections/
+verification/
+tmp/
+qa_v3/teacher_surfaces.json
+vision_preprocessing/config/*.json
+!vision_preprocessing/config/site_example.json
+!vision_preprocessing/config/taxonomy.json
+*.sqlite
+*.sqlite-*
