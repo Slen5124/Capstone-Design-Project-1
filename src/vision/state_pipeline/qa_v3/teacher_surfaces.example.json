@@ -1,0 +1,50 @@
+{
+  "schema_version": 3,
+  "coordinate_space": "normalized_original_image_xy_0_to_1",
+  "original_size": [
+    2688,
+    1512
+  ],
+  "human_confirmed_ground_truth": false,
+  "reference_origin": "example",
+  "source_images_copied": false,
+  "scope": "Example only. Copy to teacher_surfaces.json and fill with your own reference photos (kept local, never committed).",
+  "references": [
+    {
+      "id": "EX01",
+      "scene_note": "example reference photo",
+      "skipped_surfaces": [],
+      "regions": [
+        {
+          "id": "EX01_wall_left",
+          "label": "wall",
+          "role": "complete_surface",
+          "points": [
+            [
+              0.1,
+              0.5
+            ],
+            [
+              0.3,
+              0.4
+            ],
+            [
+              0.32,
+              0.6
+            ],
+            [
+              0.2,
+              0.9
+            ]
+          ],
+          "exclusions": [],
+          "confidence": "medium",
+          "scope": "visible installed wall segment"
+        }
+      ],
+      "source_sha256": "<sha256 of the photo>",
+      "source_entry": "<photo file name inside the ZIP>",
+      "original_visual_inspection_path": "<optional local path>"
+    }
+  ]
+}

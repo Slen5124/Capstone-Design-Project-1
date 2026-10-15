@@ -1,0 +1,181 @@
+{
+ "schema_version": "site/1",
+ "site_id": "SITE_A",
+ "site_name": "Example Store #000, City",
+ "camera_id": "SITE_A_CAM01",
+ "camera_notes": "One fixed camera per site assumed. Camera moves are NOT verified; see index-views candidates.",
+ "taxonomy": "taxonomy.json",
+ "paths": {
+  "preprocess_root": "D:\\work\\project\\preprocessed_data",
+  "latest_run_pointer": "automatic_results/latest_active_run.json",
+  "output_root": "state_preprocessing_results",
+  "store": "state_preprocessing_results/review_store/SITE_A.sqlite",
+  "teacher_surfaces": "qa_v3/teacher_surfaces.json"
+ },
+ "path_map": {},
+ "source": {
+  "photo_zip_contains": "#000_-_Example",
+  "categories": [
+   "auto_fixed",
+   "kept",
+   "needs_review"
+  ],
+  "categories_note": "needs_review is read for review input. Reading it (or auto_fixed/kept) never makes anything training ground truth."
+ },
+ "capture_time": {
+  "filename_regex": "-(?P<date>\\d{8})-(?P<time>\\d{6})(?P<copy> \\(\\d+\\))?(?P<download> - (?P<dl>\\d{4}-\\d{2}-\\d{2}T\\d{6}(?:\\.\\d+)?))?\\.(?:jpe?g|png)$",
+  "timezone": null,
+  "timezone_confirmed": false,
+  "notes": "Times are camera/file-name local times with unknown time zone. The ' - 2026-10-07T...' suffix is a download time, never a capture time."
+ },
+ "ingest": {
+  "verify_photo_hash": true,
+  "verify_annotation_hash": true,
+  "decode_check": "header"
+ },
+ "views": [],
+ "view_detection": {
+  "max_side": 960,
+  "min_inliers": 40,
+  "min_inlier_ratio": 0.5,
+  "same_view_max_corner_shift": 0.012,
+  "move_min_corner_shift": 0.03,
+  "stride": 1,
+  "status": "unvalidated engineering defaults; candidates only",
+  "coarse_stride": 6,
+  "coarse_note": "every 6th usable photo is compared; boundaries are then refined on all photos in between"
+ },
+ "targets": [
+  {
+   "target_id": "W01",
+   "surface_type": "wall",
+   "zone_id": "Z-W-LEFT",
+   "name": "left wall (as seen from camera)",
+   "identity_status": "proposed",
+   "activities": {
+    "wall_board_installation": {
+     "applicability": "unknown",
+     "basis": "template target; confirm in the review UI for this site"
+    }
+   }
+  },
+  {
+   "target_id": "W02",
+   "surface_type": "wall",
+   "zone_id": "Z-W-RIGHT",
+   "name": "right wall (as seen from camera)",
+   "identity_status": "proposed",
+   "activities": {
+    "wall_board_installation": {
+     "applicability": "unknown",
+     "basis": "template target; confirm in the review UI for this site"
+    }
+   }
+  },
+  {
+   "target_id": "F01",
+   "surface_type": "floor",
+   "zone_id": "Z-F-SALES",
+   "name": "store floor zone (visible sales area)",
+   "identity_status": "proposed",
+   "activities": {
+    "floor_finish_installation": {
+     "applicability": "unknown",
+     "basis": "template target; confirm in the review UI for this site"
+    }
+   }
+  },
+  {
+   "target_id": "C01",
+   "surface_type": "ceiling",
+   "zone_id": "Z-C-SALES",
+   "name": "store ceiling zone",
+   "identity_status": "proposed",
+   "activities": {
+    "ceiling_panel_installation": {
+     "applicability": "unknown",
+     "basis": "template target; confirm in the review UI for this site"
+    }
+   }
+  }
+ ],
+ "roi_hints": {
+  "teacher_reference_ids": [],
+  "use": "qa_v3 teacher regions are 'visible installed segments' (assistant drafts, not human-confirmed). They are displayed as hints only and are never used as measurement ROIs, because an installed-only ROI would bias the ratio."
+ },
+ "assign": {
+  "link_min_shape_fraction": 0.8,
+  "cross_target_min_fraction": 0.05,
+  "min_shape_area_px": 25,
+  "register_cross_view": true,
+  "verify_same_view_registration": false,
+  "same_view_max_shift_px": 6.0,
+  "status": "unvalidated engineering defaults"
+ },
+ "quality": {
+  "analysis_max_side": 1024,
+  "low_light_mean": 45,
+  "overexposed_fraction": 0.25,
+  "blur_laplacian_var": 40,
+  "status": "unvalidated defaults; flags are candidates for review"
+ },
+ "split": {
+  "policy": "phase_stratified",
+  "block": "day",
+  "fractions": {
+   "train": 0.7,
+   "val": 0.15,
+   "test": 0.15
+  },
+  "stable_block_days": 3,
+  "change_block_days": 1,
+  "gap_blocks": 0,
+  "seed": 20261013,
+  "unknown_time": "exclude",
+  "notes": "Phase-stratified, day-grouped single-site split (user decision 13). Results measure within-site generalization over time on one camera, not other sites."
+ },
+ "export": {
+  "image_format": "jpg",
+  "jpeg_quality": 95,
+  "size": [
+   1024,
+   576
+  ],
+  "resize_mode": "letterbox",
+  "crop_margin": 0.05,
+  "min_valid_pixels": 64,
+  "auto_occluder_ignore": true
+ },
+ "thumbs": {
+  "dark_mean": 30,
+  "low_light_mean": 55,
+  "overexposed_fraction": 0.25,
+  "status": "unvalidated defaults"
+ },
+ "drift": {
+  "frames_per_day": 3,
+  "ignore_below": 0.005,
+  "redraw_above": 0.015,
+  "shake_spread": 0.015,
+  "consecutive_days_for_move": 2,
+  "status": "unvalidated defaults; shift = mean image-corner displacement / image width (user decision 8)"
+ },
+ "timeline": {
+  "grid": [
+   8,
+   6
+  ],
+  "z_change": 3.5,
+  "abs_change": 6.0,
+  "same_fraction_tol": 0.05,
+  "status": "unvalidated defaults"
+ },
+ "sampling": {
+  "stable_per_day": 2,
+  "transition_per_day": 6,
+  "messy_fraction": 0.15,
+  "max_samples": 0,
+  "status": "unvalidated defaults (user decisions: 2/day stable, 6-8/day change, keep ~15% messy photos)"
+ },
+ "review_notes": []
+}
