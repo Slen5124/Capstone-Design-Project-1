@@ -1,0 +1,442 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>State Label Review</title>
+<style>
+:root{--bg:#f4f4f2;--panel:#fff;--ink:#1d1d1b;--muted:#6b6b66;--line:#d9d8d2;--accent:#2457c5;--ok:#1d7a3a;--warn:#a35a00;--bad:#b3261e}
+*{box-sizing:border-box}
+body{margin:0;font:13px/1.4 system-ui,-apple-system,"Segoe UI","Malgun Gothic",sans-serif;background:var(--bg);color:var(--ink);height:100vh;display:flex;flex-direction:column}
+header{display:flex;gap:12px;align-items:center;padding:6px 10px;border-bottom:1px solid var(--line);background:var(--panel)}
+header b{font-size:14px}
+main{flex:1;display:flex;min-height:0}
+#left{width:290px;border-right:1px solid var(--line);display:flex;flex-direction:column;background:var(--panel)}
+#list{flex:1;overflow:auto}
+.it{padding:4px 8px;border-bottom:1px solid #eee;cursor:pointer;font-size:12px}
+.it:hover{background:#eef2fb}.it.sel{background:#dde6fa}
+.it small{color:var(--muted)}
+#center{flex:1;display:flex;flex-direction:column;min-width:0;position:relative}
+#tools{display:flex;flex-wrap:wrap;gap:6px;padding:5px 8px;border-bottom:1px solid var(--line);background:var(--panel);align-items:center}
+#stage{flex:1;display:flex;min-height:0;gap:4px;padding:4px}
+#grid{position:absolute;inset:0;top:0;background:var(--bg);overflow:auto;z-index:4;display:none;padding:8px}
+#gridbar{position:sticky;top:0;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 8px;margin-bottom:8px;z-index:2}
+#gridwrap{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}
+.th{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:4px;font-size:11px}
+.th img{width:100%;display:block;border-radius:4px;cursor:zoom-in;background:#222;aspect-ratio:16/9;object-fit:cover}
+.th.sel{outline:3px solid var(--accent)}
+.cv{flex:1;position:relative;background:#222;min-width:0}
+.cv canvas{position:absolute;inset:0;width:100%;height:100%}
+.cv .cap{position:absolute;left:6px;top:4px;color:#fff;font-size:12px;text-shadow:0 0 3px #000;pointer-events:none}
+#right{width:390px;border-left:1px solid var(--line);overflow:auto;background:var(--panel);padding:8px}
+fieldset{border:1px solid var(--line);border-radius:6px;margin:0 0 8px;padding:6px 8px}
+legend{font-weight:600;padding:0 4px}
+button{font:inherit;padding:3px 8px;border:1px solid #b9b8b0;border-radius:4px;background:#fafaf8;cursor:pointer}
+button:hover{background:#eef2fb}button.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button.approve{background:var(--ok);color:#fff;border-color:var(--ok)}
+button.on{outline:2px solid var(--accent)}
+select,input,textarea{font:inherit;padding:2px 4px;border:1px solid #b9b8b0;border-radius:4px;max-width:100%}
+.badge{display:inline-block;padding:0 6px;border-radius:9px;font-size:11px;background:#e5e4de}
+.b-approved{background:#cdebd5;color:var(--ok)}.b-unreviewed,.b-draft{background:#fbe7c6;color:var(--warn)}
+.b-invalidated,.b-rejected,.b-missing{background:#f6d3d0;color:var(--bad)}
+.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:3px 0}
+.muted{color:var(--muted)}.err{color:var(--bad)}
+#toolstate{position:absolute;left:12px;bottom:12px;z-index:3;max-width:70%;background:rgba(0,0,0,.72);color:#fff;padding:4px 8px;border-radius:5px;pointer-events:none}
+#toolstate:empty{display:none}
+#msg{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:6px 12px;border-radius:6px;display:none;max-width:70vw;z-index:9}
+ul.reasons{margin:2px 0 2px 16px;padding:0}
+.small{font-size:11px}
+</style>
+</head>
+<body>
+<header>
+  <b>State Label Review</b><span id="runinfo" class="muted"></span>
+  <span style="flex:1"></span>
+  <a href="/todo" style="color:#7fb0ff;margin-right:10px">할 일 (To-do) →</a>
+  <label>Reviewer <input id="reviewer" placeholder="name (required)" size="14"></label>
+</header>
+<main>
+  <div id="left">
+    <div style="padding:6px;border-bottom:1px solid var(--line)" class="small">
+      <div class="row"><select id="fview"><option value="">all views</option></select>
+        <select id="filter"><option value="all">all images</option><option value="samples">samples (auto)</option><option value="ok">status ok</option>
+        <option value="ref">view/ROI reference</option><option value="labeled">has any label</option>
+        <option value="held">held (input problems)</option></select></div>
+      <div class="row">label (<b id="fkey">-</b>): <select id="fstatus"><option value="any">any</option><option value="unlabeled">unlabeled</option>
+        <option value="unreviewed">draft (not approved)</option><option value="anydraft">any target has a draft</option><option value="approved">approved</option><option value="needs">invalidated/rejected</option></select></div>
+      <div class="row"><label><input type="checkbox" id="fhideoccl"> hide occluder &gt;</label><input id="foccl" type="number" value="30" min="0" max="100" style="width:46px">%</div>
+      <div class="row"><label><input type="checkbox" id="fhidedark"> hide low-light/blur</label><label><input type="checkbox" id="fhidedup" checked> hide dup</label></div>
+      <div class="row">from <input id="ffrom" type="date" style="width:118px"> to <input id="fto" type="date" style="width:118px"></div>
+      <div class="row"><input id="search" placeholder="id / time" size="11"><span id="fcount" class="muted"></span></div>
+      <div class="row"><button onclick="resetFilters()">Show all (reset filters)</button><button onclick="refreshStale()">Refresh stale obs</button></div>
+      <div class="row"><button onclick="prefillFiltered()">Prefill unlabeled as</button><select id="prefillState"><option>not_installed</option><option>installed</option></select></div>
+      <div class="muted">Keys: ← / → previous / next in this list · A = approve current label and go next</div>
+    </div>
+    <div id="list"></div>
+  </div>
+  <div id="center">
+    <div id="tools">
+      <span class="muted">Layers:</span>
+      <label><input type="checkbox" data-layer="objects" checked> objects</label>
+      <label><input type="checkbox" data-layer="roi" checked> ROI</label>
+      <label><input type="checkbox" data-layer="occl" checked> occluder cand.</label>
+      <label><input type="checkbox" data-layer="state" checked> state</label>
+      <label><input type="checkbox" data-layer="links"> linked polygons</label>
+      <label><input type="checkbox" data-layer="hints"> qa_v3 hints</label>
+      <label><input type="checkbox" id="compare"> compare with reference</label>
+      <span style="flex:1"></span>
+      <span id="toolstate"></span>
+      <button id="gridbtn" onclick="toggleGrid()">Grid view</button><button id="fit">fit</button>
+    </div>
+    <div id="grid"><div id="gridbar"></div><div id="gridwrap"></div></div>
+    <div id="stage">
+      <div class="cv" id="cvA"><canvas></canvas><div class="cap"></div></div>
+      <div class="cv" id="cvB" style="display:none"><canvas></canvas><div class="cap"></div></div>
+    </div>
+  </div>
+  <div id="right"></div>
+</main>
+<div id="msg"></div>
+<script>
+"use strict";
+const S={meta:null,images:[],cur:null,item:null,shapes:null,target:null,activity:null,
+  draftROI:null,draftLabel:null,tool:null,pts:[],dirty:false,layers:{objects:true,roi:true,occl:true,state:true,links:false,hints:false},
+  ref:null};
+const $=s=>document.querySelector(s);
+function esc(v){return String(v??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+function badge(s){return `<span class="badge b-${esc(s)}">${esc(s)}</span>`}
+function msg(t,bad){const m=$("#msg");m.textContent=t;m.style.background=bad?"#8a1c16":"#222";m.style.display="block";clearTimeout(m._t);m._t=setTimeout(()=>m.style.display="none",bad?7000:2500)}
+async function api(path,body){const r=await fetch(path,body?{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)}:{});
+  const j=await r.json().catch(()=>({error:r.statusText}));if(!r.ok)throw new Error(j.error||r.statusText);return j}
+function reviewer(){const v=$("#reviewer").value.trim();if(!v){msg("Enter reviewer name first",true);throw new Error("no reviewer")}try{localStorage.setItem("reviewer",v)}catch(e){}return v}
+try{$("#reviewer").value=localStorage.getItem("reviewer")||""}catch(e){}
+
+// ---------------- canvas view ----------------
+class View{constructor(el){this.el=el;this.c=el.querySelector("canvas");this.cap=el.querySelector(".cap");this.ctx=this.c.getContext("2d");
+  this.img=null;this.size=[1,1];this.s=1;this.ox=0;this.oy=0;this.draw=()=>{};
+  new ResizeObserver(()=>{this.fit();}).observe(el);
+  this.c.addEventListener("wheel",e=>{e.preventDefault();const f=e.deltaY<0?1.15:1/1.15;const r=this.c.getBoundingClientRect();
+    const mx=e.clientX-r.left,my=e.clientY-r.top;this.ox=mx-(mx-this.ox)*f;this.oy=my-(my-this.oy)*f;this.s*=f;this.render()},{passive:false});
+  let drag=null;this.c.addEventListener("mousedown",e=>{if(e.button===1||e.shiftKey){drag=[e.clientX,e.clientY,this.ox,this.oy];e.preventDefault()}});
+  window.addEventListener("mousemove",e=>{if(drag){this.ox=drag[2]+e.clientX-drag[0];this.oy=drag[3]+e.clientY-drag[1];this.render()}});
+  window.addEventListener("mouseup",()=>drag=null);}
+ setImage(url,size,cap){this.size=size;this.cap.textContent=cap||"";const im=new Image();im.onload=()=>{this.img=im;this.fit()};im.src=url}
+ fit(){const w=this.el.clientWidth,h=this.el.clientHeight;this.c.width=w;this.c.height=h;const s=Math.min(w/this.size[0],h/this.size[1]);this.s=s;this.ox=(w-this.size[0]*s)/2;this.oy=(h-this.size[1]*s)/2;this.render()}
+ toImg(e){const r=this.c.getBoundingClientRect();return[(e.clientX-r.left-this.ox)/this.s,(e.clientY-r.top-this.oy)/this.s]}
+ render(){const x=this.ctx;x.setTransform(1,0,0,1,0,0);x.clearRect(0,0,this.c.width,this.c.height);
+  x.setTransform(this.s,0,0,this.s,this.ox,this.oy);if(this.img)x.drawImage(this.img,0,0,this.size[0],this.size[1]);this.draw(x,this.s)}
+ poly(pts,stroke,fill,lw){const x=this.ctx;if(!pts||pts.length<2)return;x.beginPath();x.moveTo(pts[0][0],pts[0][1]);for(const p of pts.slice(1))x.lineTo(p[0],p[1]);x.closePath();
+  if(fill){x.fillStyle=fill;x.fill("evenodd")}if(stroke){x.strokeStyle=stroke;x.lineWidth=(lw||2)/this.s;x.stroke()}}
+ polyHoles(poly,stroke,fill){const x=this.ctx;x.beginPath();for(const ring of [poly.exterior,...(poly.holes||[])]){x.moveTo(ring[0][0],ring[0][1]);for(const p of ring.slice(1))x.lineTo(p[0],p[1]);x.closePath()}
+  if(fill){x.fillStyle=fill;x.fill("evenodd")}if(stroke){x.strokeStyle=stroke;x.lineWidth=2/this.s;x.stroke()}}
+ label(t,p){const x=this.ctx;x.font=`${14/this.s}px sans-serif`;x.lineWidth=3/this.s;x.strokeStyle="#000";x.strokeText(t,p[0],p[1]);x.fillStyle="#fff";x.fillText(t,p[0],p[1])}}
+const A=new View($("#cvA")),B=new View($("#cvB"));
+const CLS_COL=["#e69f00","#56b4e9","#009e73","#f0e442","#0072b2","#d55e00","#cc79a7","#888888"];
+function labelColor(l){const c=S.meta.object_classes.find(c=>c.labels.includes(String(l).trim().toLowerCase()));return c?CLS_COL[c.id%CLS_COL.length]:"#ffffff"}
+const STATE_COL={installed:"rgba(0,200,0,.40)",not_installed:"rgba(230,0,0,.40)",undet:"rgba(255,255,0,.40)",occl:"rgba(255,0,255,.40)"};
+function centroid(p){let x=0,y=0;for(const q of p){x+=q[0];y+=q[1]}return[x/p.length,y/p.length]}
+
+function drawLayers(v,isRef){return(x,s)=>{const it=isRef?S.ref:S.item;if(!it)return;
+  if(S.layers.objects&&!isRef&&S.shapes){for(const [lab,arr] of Object.entries(S.shapes.labels)){const col=labelColor(lab);for(const sh of arr)v.poly(sh.p,null,col+"55")}}
+  if(S.layers.hints)for(const h of it.hints||[])if(h.points)v.poly(h.points,"#ffffff",null,1);
+  for(const [tid,t] of Object.entries(it.targets)){
+    const sel=tid===S.target;let roi=null;
+    if(sel&&S.draftROI&&!isRef&&isReferenceImage())roi=S.draftROI;else if(t.auto&&t.auto.roi)roi=t.auto.roi;else if(t.roi&&isRef)roi=t.roi.payload;
+    if(S.layers.roi&&roi){for(const p of roi.polygons)v.polyHoles(p,sel?"#2f7bff":"#9bb8ff",sel?"rgba(47,123,255,.12)":null);
+      for(const e of roi.exclusions||[])v.poly(e.points,"#ff2a2a","rgba(0,0,0,.35)");
+      if(roi.polygons[0])v.label(tid,centroid(roi.polygons[0].exterior))}
+    if(S.layers.occl&&t.auto)for(const c of t.auto.occlusion_candidates||[])for(const p of c.polygons)v.polyHoles(p,null,"rgba(255,0,255,.25)");
+    if(S.layers.links&&sel&&t.auto&&S.shapes){const idx=new Set((t.auto.links||[]).map(l=>l.shape_index));const ri=new Set((t.auto.review_items||[]).map(l=>l.shape_index));
+      for(const arr of Object.values(S.shapes.labels))for(const sh of arr){if(idx.has(sh.i))v.poly(sh.p,"#00ffcc",null,1.5);else if(ri.has(sh.i))v.poly(sh.p,"#ffcc00",null,2)}}
+  }
+  if(S.layers.state&&!isRef&&S.draftLabel){const L=S.draftLabel;
+    if(L.fill_roi_state){const t=S.item.targets[S.target];if(t&&t.auto&&t.auto.roi)for(const p of t.auto.roi.polygons)v.polyHoles(p,null,STATE_COL[L.fill_roi_state])}
+    for(const r of L.regions)for(const p of r.polygons)v.polyHoles(p,"#fff",STATE_COL[r.state]);
+    for(const u of L.undeterminable)for(const p of u.polygons)v.polyHoles(p,"#ff0",STATE_COL.undet);
+    for(const o of L.occluded)for(const p of o.polygons)v.polyHoles(p,"#f0f",STATE_COL.occl)}
+  if(!isRef&&S.tool==="edit"){const x2=v.ctx;for(const ed of editables()){const sel=S.sel&&S.sel.owner===ed.owner&&S.sel.idx===ed.idx;
+      if(sel)v.poly(ed.pts,"#00e5ff",null,4);for(const p of ed.pts){x2.fillStyle=sel?"#00e5ff":"#ffffff";x2.strokeStyle="#000";x2.lineWidth=1/s;
+        x2.beginPath();x2.arc(p[0],p[1],5/s,0,2*Math.PI);x2.fill();x2.stroke()}}}
+  if(!isRef&&S.tool&&S.tool!=="edit"&&S.pts.length){const x2=v.ctx;x2.beginPath();x2.moveTo(S.pts[0][0],S.pts[0][1]);for(const p of S.pts.slice(1))x2.lineTo(p[0],p[1]);
+    x2.strokeStyle="#ffea00";x2.lineWidth=2/s;x2.stroke();for(const p of S.pts){x2.fillStyle="#ffea00";x2.fillRect(p[0]-3/s,p[1]-3/s,6/s,6/s)}}
+}}
+A.draw=drawLayers(A,false);B.draw=drawLayers(B,true);
+
+// ---------------- drawing tools ----------------
+const TOOLS={edit:"EDIT",roi:"ROI polygon",excl:"exclusion (not part of work)",installed:"installed region",not_installed:"not_installed region",undet:"undeterminable region",occl:"occluded region"};
+function setTool(t){if(t&&(t==="roi"||t==="excl")&&!isReferenceImage()){msg("ROI is drawn on the view's reference image",true);return}
+  S.tool=t;S.pts=[];S.sel=null;$("#toolstate").textContent=t==="edit"?"EDIT: drag a vertex to move · double-click an edge to add a vertex · right-click a vertex to delete it · click inside a polygon to select, Delete key removes it · Esc ends":
+    t?`drawing: ${TOOLS[t]} — click points, Enter/double-click to close, Backspace undo point, Esc cancel`:"";A.render();renderRight()}
+// ---- edit mode: every polygon of the current drafts (ROI on the reference image, state label everywhere)
+function editables(){const out=[];
+  if(isReferenceImage()&&S.draftROI){S.draftROI.polygons.forEach((p,i)=>out.push({kind:"roi",pts:p.exterior,owner:S.draftROI.polygons,idx:i}));
+    S.draftROI.exclusions.forEach((e,i)=>out.push({kind:"exclusion",pts:e.points,owner:S.draftROI.exclusions,idx:i}))}
+  const L=S.draftLabel;if(L){for(const k of ["regions","undeterminable","occluded"])L[k].forEach((r,i)=>{for(const p of r.polygons)out.push({kind:k,pts:p.exterior,owner:L[k],idx:i})})}
+  return out}
+function scr(p){return[A.ox+p[0]*A.s,A.oy+p[1]*A.s]}
+function mousePos(e){const r=A.c.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top]}
+function hitVertex(e){const m=mousePos(e);let best=null,bd=9;for(const ed of editables())ed.pts.forEach((p,i)=>{const q=scr(p),d=Math.hypot(q[0]-m[0],q[1]-m[1]);if(d<bd){bd=d;best={ed,i}}});return best}
+function hitEdge(e){const m=mousePos(e);let best=null,bd=8;for(const ed of editables()){const n=ed.pts.length;for(let i=0;i<n;i++){const a=scr(ed.pts[i]),b=scr(ed.pts[(i+1)%n]);
+  const dx=b[0]-a[0],dy=b[1]-a[1],L2=dx*dx+dy*dy||1;let t=((m[0]-a[0])*dx+(m[1]-a[1])*dy)/L2;t=Math.max(0,Math.min(1,t));
+  const d=Math.hypot(a[0]+t*dx-m[0],a[1]+t*dy-m[1]);if(d<bd){bd=d;best={ed,i}}}}return best}
+function inside(pt,poly){let c=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i],b=poly[j];if((a[1]>pt[1])!==(b[1]>pt[1])&&pt[0]<(b[0]-a[0])*(pt[1]-a[1])/(b[1]-a[1])+a[0])c=!c}return c}
+function clampPt(p){const W=S.item.image.size[0],H=S.item.image.size[1];return[Math.round(Math.min(W,Math.max(0,p[0]))*10)/10,Math.round(Math.min(H,Math.max(0,p[1]))*10)/10]}
+let dragV=null;
+A.c.addEventListener("mousedown",e=>{if(S.tool!=="edit"||e.button!==0||e.shiftKey)return;const h=hitVertex(e);if(h){dragV=h;e.preventDefault()}});
+window.addEventListener("mousemove",e=>{if(!dragV)return;dragV.ed.pts[dragV.i]=clampPt(A.toImg(e));S.dirty=true;A.render()});
+window.addEventListener("mouseup",()=>{if(dragV){dragV=null;renderRight()}});
+A.c.addEventListener("contextmenu",e=>{if(S.tool!=="edit")return;e.preventDefault();const h=hitVertex(e);if(!h)return;
+  if(h.ed.pts.length<=3){msg("a polygon needs at least 3 points (select it and press Delete to remove it)",true);return}h.ed.pts.splice(h.i,1);S.dirty=true;A.render();renderRight()});
+A.c.addEventListener("click",e=>{if(S.tool==="edit"){if(hitVertex(e))return;const p=A.toImg(e);S.sel=null;
+    for(const ed of editables().reverse())if(inside(p,ed.pts)){S.sel={owner:ed.owner,idx:ed.idx,kind:ed.kind};break}A.render();renderRight();return}
+  if(!S.tool||e.shiftKey)return;S.pts.push(A.toImg(e).map(v=>Math.round(v*10)/10));A.render()});
+A.c.addEventListener("dblclick",e=>{if(S.tool==="edit"){e.preventDefault();const h=hitEdge(e);if(h){h.ed.pts.splice(h.i+1,0,clampPt(A.toImg(e)));S.dirty=true;A.render();renderRight()}return}
+  if(S.tool){e.preventDefault();finishPoly()}});
+function deleteSelected(){if(!S.sel){msg("click inside a polygon first (edit mode)",true);return}S.sel.owner.splice(S.sel.idx,1);S.sel=null;S.dirty=true;A.render();renderRight()}
+function revertDrafts(){if(S.dirty&&!confirm("Discard all unsaved changes and reload the saved version?"))return;S.dirty=false;resetDrafts();setTool(S.tool==="edit"?"edit":null)}
+window.addEventListener("keydown",e=>{if(e.target.tagName==="INPUT"||e.target.tagName==="TEXTAREA"||e.target.tagName==="SELECT")return;
+  if(e.key==="Escape")setTool(null);if(e.key==="Enter"&&S.tool&&S.tool!=="edit")finishPoly();
+  if((e.key==="Delete"||(e.key==="Backspace"&&S.tool==="edit"))&&S.tool==="edit"){deleteSelected();e.preventDefault();return}
+  if(e.key==="Backspace"&&S.tool){S.pts.pop();A.render();e.preventDefault()}});
+function uniq(pts){const o=[];for(const p of pts){const q=o[o.length-1];if(!q||Math.hypot(q[0]-p[0],q[1]-p[1])>0.5)o.push(p)}return o}
+function finishPoly(){const pts=uniq(S.pts);if(pts.length<3){msg("need at least 3 points",true);return}
+  const W=S.item.image.size[0],H=S.item.image.size[1];for(const p of pts){p[0]=Math.min(W,Math.max(0,p[0]));p[1]=Math.min(H,Math.max(0,p[1]))}
+  const poly={exterior:pts,holes:[]};const t=S.tool;
+  if(t==="roi"){S.draftROI.polygons.push(poly)}
+  else if(t==="excl"){const reason=prompt("제외 이유 — 공사 대상이 아닌 영구 개구부만 제외합니다.\n  door_opening (문) / window (창) / fixture (설비·기둥) / not_in_scope (공사 범위 밖)\n나중에 보드로 막을 임시 통로는 제외하지 말고 ROI에 포함하세요 (막히기 전 = not_installed).","door_opening");if(!reason){S.pts=[];return}S.draftROI.exclusions.push({points:pts,reason})}
+  else if(t==="installed"||t==="not_installed"){S.draftLabel.regions.push({state:t,polygons:[poly]})}
+  else if(t==="undet"){const r=$("#undetReason").value;S.draftLabel.undeterminable.push({reason:r,polygons:[poly]})}
+  else if(t==="occl"){S.draftLabel.occluded.push({polygons:[poly],note:"manual"})}
+  S.dirty=true;S.pts=[];A.render();renderRight()}
+
+// ---------------- data loading ----------------
+function isReferenceImage(){const v=S.item&&S.item.view_record;return !!(v&&v.payload.reference_image_id===S.cur)}
+async function loadMeta(){S.meta=await api("/api/meta");$("#runinfo").textContent=`${S.meta.site_id} · ${S.meta.run_id} · time zone ${S.meta.timezone_confirmed?"confirmed":"UNCONFIRMED"}`;
+  if(!S.target&&S.meta.targets.length)S.target=S.meta.targets[0].key;
+  const fv=$("#fview"),keep=fv.value;fv.innerHTML='<option value="">all views</option>'+S.meta.views.map(v=>`<option ${v.key===keep?"selected":""}>${esc(v.key)}</option>`).join("")}
+async function loadList(){S.images=await api("/api/images");renderList()}
+function curKey(){return `${S.target}|${S.activity}`}
+function labelStatus(im){const l=im.label_status&&im.label_status[curKey()];return l?l.status:"unlabeled"}
+function filtered(){const f=$("#filter").value,q=$("#search").value.trim(),fv=$("#fview").value,fs=$("#fstatus").value;
+  const occOn=$("#fhideoccl").checked,occMax=(+$("#foccl").value||0)/100,dark=$("#fhidedark").checked,dup=$("#fhidedup").checked,from=$("#ffrom").value,to=$("#fto").value;
+  return S.images.filter(im=>{
+    if(!(f==="all"||(f==="samples"&&im.sample)||(f==="ok"&&im.status==="ok")||(f==="held"&&im.status!=="ok")||(f==="ref"&&(im.is_view_reference||im.is_roi_reference))||(f==="labeled"&&im.labels.length)))return false;
+    if(q&&!((im.time||"").includes(q)||im.image_id.includes(q)))return false;
+    if(fv&&im.view_id!==fv)return false;
+    if(dup&&im.duplicate_of)return false;
+    const d=(im.time||"").slice(0,10);if(from&&d<from)return false;if(to&&d>to)return false;
+    const o=(im.obs||{})[S.target]||{};
+    if(occOn&&o.occl!=null&&o.occl>occMax)return false;
+    if(dark&&(o.flags||[]).some(x=>/low_light|blur/.test(x)))return false;
+    const st=labelStatus(im);
+    if(fs==="unlabeled"&&st!=="unlabeled")return false;if(fs==="unreviewed"&&st!=="unreviewed")return false;
+    if(fs==="approved"&&st!=="approved")return false;
+    if(fs==="anydraft"&&!Object.values(im.label_status||{}).some(l=>l.status==="unreviewed"))return false;if(fs==="needs"&&!(st==="invalidated"||st==="rejected"))return false;
+    return true})}
+function hiddenSummary(list){const hid=S.images.length-list.length;if(!hid)return "";const o=$("#fhideoccl").checked,d=$("#fhidedark").checked;
+  const parts=[];if(o)parts.push("occluder");if(d)parts.push("low-light");if($("#fhidedup").checked)parts.push("dup");
+  if($("#fview").value)parts.push("view");if($("#fstatus").value!=="any")parts.push("label status");if($("#ffrom").value||$("#fto").value)parts.push("date");
+  return ` (${hid} hidden by filter${parts.length?": "+parts.join(", "):""})`}
+function resetFilters(){for(const id of ["fview","ffrom","fto","search"])$("#"+id).value="";$("#filter").value="all";$("#fstatus").value="any";
+  $("#fhideoccl").checked=false;$("#fhidedark").checked=false;$("#fhidedup").checked=true;renderList()}
+S.listMax=300;
+function renderList(){const el=$("#list");const all=filtered();$("#fkey").textContent=curKey();$("#fcount").textContent=` ${all.length} / ${S.images.length} photos`+hiddenSummary(all);
+  let ci=all.findIndex(x=>x.image_id===S.cur);if(ci>=S.listMax)S.listMax=ci+50;const list=all.slice(0,S.listMax);
+  el.innerHTML=list.map(im=>{const o=(im.obs||{})[S.target]||{};const st=labelStatus(im);
+    return `<div class="it ${im.image_id===S.cur?"sel":""}" data-id="${esc(im.image_id)}">${esc((im.time||"no time").replace("T"," "))}
+   ${im.is_view_reference?'<span class="badge">view ref</span>':""}${im.sample?`<span class="badge" title="auto sample">${esc(im.sample.kind)}·${esc(im.sample.phase)}</span>`:""}${im.duplicate_of?'<span class="badge">dup</span>':""}${im.status!=="ok"?badge("held"):""}
+   <br><small>${esc(im.view_id||"no view")} · ${esc(S.target)}: ${st==="unlabeled"?'<span class="muted">unlabeled</span>':badge(st)}
+   · occl ${o.occl==null?"?":Math.round(o.occl*100)+"%"}${o.stale?' <span class="err">stale</span>':""}${(o.flags||[]).length?" · "+esc(o.flags.join(",")):""}</small></div>`}).join("")
+   +(all.length>list.length?`<div class="it"><button onclick="S.listMax+=300;renderList()">더 보기 (${all.length-list.length} more)</button></div>`:"");
+  el.querySelectorAll(".it[data-id]").forEach(d=>d.onclick=()=>openImage(d.dataset.id));renderGrid()}
+function stepList(dir){const list=filtered();if(!list.length)return;let i=list.findIndex(x=>x.image_id===S.cur);i=i<0?0:Math.min(list.length-1,Math.max(0,i+dir));openImage(list[i].image_id)}
+async function quickApprove(){const t=S.item&&S.item.targets[S.target];const a=t&&t.activities[S.activity];
+  if(!a||!a.label){msg("no saved label for this photo / target / activity",true);return}
+  if(S.dirty){msg("unsaved changes: press Save label draft first",true);return}
+  if(a.label.review==="approved"){stepList(1);return}
+  await approve("state_label",a.label.key,a.label.version);stepList(1)}
+async function refreshStale(){const who=reviewer();const ids=filtered().filter(im=>im.status==="ok"&&Object.values(im.obs||{}).some(o=>o.stale||o.status==="missing")).map(im=>im.image_id);
+  if(!ids.length){msg("no stale observations in this list");return}
+  msg(`refreshing ${ids.length} photo(s)…`);await guard(()=>api("/api/reassign",{author:who,image_ids:ids}),`refreshed ${ids.length} photo(s)`);await loadList()}
+async function prefillFiltered(){const who=reviewer();const state=$("#prefillState").value;
+  const ids=filtered().filter(im=>im.status==="ok"&&labelStatus(im)==="unlabeled"&&im.view_id).map(im=>im.image_id);
+  if(!ids.length){msg("no unlabeled photos in this list",true);return}
+  if(!confirm(`${S.target} × ${S.activity}\n${ids.length} photo(s) in this list get a DRAFT: whole ROI = ${state}.\n\nOnly do this when you have checked that these photos really are all ${state}.\nNothing is approved: open each photo, check it, and approve it (A key).`))return;
+  const r=await guard(()=>api("/api/prefill",{author:who,image_ids:ids,target_id:S.target,activity_id:S.activity,state}),"drafts created");
+  if(r)msg(`${r.created} draft(s) created, ${r.skipped.length} skipped${r.skipped.length?" ("+[...new Set(r.skipped.map(x=>x.reason))].join(", ")+")":""}`);
+  $("#fstatus").value="unreviewed";await loadList();if(S.cur)await refresh(false)}
+// ---------------- grid view: look at many photos at once, approve "same as previous" ----------------
+S.grid=false;S.gridSel=new Set();S.gridTargets=null;
+function wallFloorTargets(){return S.meta.targets.filter(t=>["wall","floor"].includes(t.payload.surface_type)&&t.payload.identity_status!=="retired").map(t=>t.key)}
+function actOf(tid){const t=S.meta.targets.find(x=>x.key===tid);return t?Object.keys(t.activities)[0]:null}
+function toggleGrid(){S.grid=!S.grid;$("#grid").style.display=S.grid?"block":"none";$("#gridbtn").classList.toggle("on",S.grid);if(S.grid)renderGrid()}
+S.gridPage=0;const GRID_PAGE=120;
+function renderGrid(){if(!S.grid)return;if(!S.gridTargets)S.gridTargets=new Set(wallFloorTargets());
+  const all=filtered();const pages=Math.max(1,Math.ceil(all.length/GRID_PAGE));S.gridPage=Math.min(S.gridPage,pages-1);
+  const list=all.slice(S.gridPage*GRID_PAGE,(S.gridPage+1)*GRID_PAGE);const tids=S.meta.targets.map(t=>t.key);
+  $("#gridbar").innerHTML=`<div class="row"><b>${all.length} photos</b> (left filters apply) · page ${S.gridPage+1}/${pages}
+    <button onclick="S.gridPage=Math.max(0,S.gridPage-1);renderGrid()">◀</button><button onclick="S.gridPage++;renderGrid()">▶</button> · selected <b>${S.gridSel.size}</b>
+    <button onclick="gridSelect('unlabeled')">select photos not yet approved (this page)</button><button onclick="gridSelect('none')">clear selection</button>
+    <span style="flex:1"></span><button onclick="toggleGrid()">Close grid</button></div>
+    <div class="row">targets: ${tids.map(t=>`<label><input type="checkbox" ${S.gridTargets.has(t)?"checked":""} onchange="S.gridTargets[this.checked?'add':'delete']('${esc(t)}')"> ${esc(t)}</label>`).join(" ")}
+    <button class="approve" onclick="sameAsPrevious()">Same as previous photo → approve (selected)</button></div>
+    <div class="small muted">Look at every selected thumbnail first. For each selected photo and checked target, the most recent earlier approved label (same view) is copied — state regions only, no occlusion — and approved under your name. Unapproved drafts already on a photo (e.g. from Prefill) are approved as they are; approved/invalidated labels are left alone. Click a thumbnail to open it.</div>`;
+  $("#gridwrap").innerHTML=list.map(im=>{const b=tids.map(t=>{const l=(im.label_status||{})[`${t}|${actOf(t)}`];return `${esc(t)}:${l?badge(l.status):'<span class="muted">-</span>'}`}).join(" ");
+    if(im.status!=="ok")return `<div class="th"><div class="muted" style="aspect-ratio:16/9;display:flex;align-items:center;justify-content:center">held: ${esc(im.checks.join(", "))}</div><b>${esc((im.time||"").replace("T"," ").slice(0,16))}</b></div>`;
+    return `<div class="th ${S.gridSel.has(im.image_id)?"sel":""}"><img loading="lazy" src="/api/thumb/${esc(im.image_id)}" onclick="toggleGrid();openImage('${esc(im.image_id)}')">
+     <label><input type="checkbox" ${S.gridSel.has(im.image_id)?"checked":""} onchange="gridToggle('${esc(im.image_id)}',this.checked)"> <b>${esc((im.time||"").replace("T"," ").slice(0,16))}</b> ${esc(im.view_id||"no view")}</label><div>${b}</div></div>`}).join("")}
+function gridToggle(id,on){S.gridSel[on?"add":"delete"](id);renderGrid()}
+function gridSelect(mode){if(mode==="none")S.gridSel.clear();else{for(const im of filtered().slice(S.gridPage*GRID_PAGE,(S.gridPage+1)*GRID_PAGE)){if(im.status!=="ok"||!im.view_id)continue;
+  if([...S.gridTargets].some(t=>{const l=(im.label_status||{})[`${t}|${actOf(t)}`];return !l||l.status==="unreviewed"}))S.gridSel.add(im.image_id)}}renderGrid()}
+async function sameAsPrevious(){const who=reviewer();const ids=[...S.gridSel];const tg=[...S.gridTargets];
+  if(!ids.length||!tg.length){msg("select photos and targets first",true);return}
+  if(!confirm(`${ids.length} photo(s) × ${tg.join(", ")}\n\nCopy the previous approved label and APPROVE it under "${who}".\nOnly continue if you have looked at these photos and the state is unchanged.`))return;
+  msg("working…");const r=await guard(()=>api("/api/same_as_previous",{author:who,image_ids:ids,targets:tg}),"done");
+  if(r){const reasons=[...new Set(r.skipped.map(x=>x.reason))];msg(`${r.approved} label(s) approved, ${r.skipped.length} skipped${reasons.length?" ("+reasons.join("; ")+")":""}`)}
+  S.gridSel.clear();await loadMeta();await loadList();renderGrid();if(S.cur){S.item=await api("/api/item/"+S.cur);resetDrafts();renderRight()}}
+window.addEventListener("keydown",e=>{if(["INPUT","TEXTAREA","SELECT"].includes(e.target.tagName)||S.tool||S.grid)return;
+  if(e.key==="ArrowRight"){stepList(1);e.preventDefault()}else if(e.key==="ArrowLeft"){stepList(-1);e.preventDefault()}
+  else if(e.key==="a"||e.key==="A"){quickApprove();e.preventDefault()}});
+async function openImage(id){if(S.dirty&&!confirm("Discard unsaved drafts?"))return;S.cur=id;S.dirty=false;S.tool=null;S.pts=[];
+  S.item=await api("/api/item/"+id);S.shapes=await api("/api/shapes/"+id).catch(()=>null);
+  const im=S.item.image;A.setImage(`/api/image/${id}?max=1600`,im.size,`${im.capture.time_local||"no time"} · ${id}`);
+  resetDrafts();await loadRef();renderList();renderRight()}
+async function loadRef(){const v=S.item.view_record;if($("#compare").checked&&v){const rid=v.payload.reference_image_id;$("#cvB").style.display="";
+   S.ref=await api("/api/item/"+rid);B.setImage(`/api/image/${rid}?max=1600`,S.ref.image.size,`REFERENCE ${S.ref.image.capture.time_local} · ${rid}`)}
+  else{$("#cvB").style.display="none";S.ref=null}setTimeout(()=>A.fit(),30)}
+function resetDrafts(){S.sel=null;const t=S.item&&S.item.targets[S.target];
+  S.draftROI=t&&t.roi?JSON.parse(JSON.stringify({polygons:t.roi.payload.polygons,exclusions:t.roi.payload.exclusions})):{polygons:[],exclusions:[]};
+  const acts=t?Object.keys(t.activities):[];if(!acts.includes(S.activity))S.activity=acts[0]||null;
+  const lab=t&&S.activity&&t.activities[S.activity].label;
+  S.draftLabel=lab?JSON.parse(JSON.stringify({regions:lab.payload.regions,undeterminable:lab.payload.undeterminable,occluded:lab.payload.occluded,fill_roi_state:lab.payload.fill_roi_state,whole_target_undeterminable:lab.payload.whole_target_undeterminable,note:lab.payload.note||""})):
+   {regions:[],undeterminable:[],occluded:[],fill_roi_state:null,whole_target_undeterminable:null,note:""};A.render()}
+
+// ---------------- right panel ----------------
+function recLine(r){if(!r)return badge("missing");return `v${r.version} · ${esc(r.source)} · ${esc(r.author)} ${badge(r.review)}${r.review_reason?` <span class="small muted">${esc(r.review_reason)}</span>`:""}`}
+function renderRight(){const R=$("#right");if(!S.item){R.innerHTML='<p class="muted">Select an image.</p>';return}
+  const it=S.item,im=it.image,t=it.targets[S.target],vr=it.view_record;
+  const tmeta=S.meta.targets.find(x=>x.key===S.target);
+  let h=`<fieldset><legend>Image</legend><div class="small">${esc(im.image_id)}<br>${esc(im.source_photo.entry)}<br>
+   capture ${esc(im.capture.time_local)} (${esc(im.capture.status)}; tz ${im.capture.timezone_confirmed?"confirmed":"unconfirmed"})
+   ${im.capture.download_time_in_name?`<br>download time in name: ${esc(im.capture.download_time_in_name)} (not capture)`:""}
+   <br>qa_v3: ${esc(im.annotation&&im.annotation.qa_v3_classification)} · ${esc((im.annotation&&im.annotation.qa_v3_unresolved_codes||[]).join(", "))}
+   ${im.checks.length?`<br><span class="err">checks: ${esc(im.checks.map(c=>c.code).join(", "))}</span>`:""}
+   ${im.duplicate_of?`<br>duplicate of ${esc(im.duplicate_of)}`:""}</div></fieldset>`;
+  h+=`<fieldset><legend>View</legend>${vr?`<b>${esc(vr.key)}</b> ${recLine(vr)}<div class="small">${esc(vr.payload.start_time)} → ${esc(vr.payload.end_time)}<br>reference ${esc(vr.payload.reference_image_id)} ${isReferenceImage()?"(this image)":""}<br>source ${esc(vr.payload.classification_source)}</div>
+   <div class="row"><button onclick="approve('view','${esc(vr.key)}',${vr.version})" class="approve">Approve view</button>
+   <button onclick="editView()">Edit range / reference…</button>${!isReferenceImage()?`<button onclick="openImage('${esc(vr.payload.reference_image_id)}')">Go to reference</button>`:""}</div>`
+   :`<span class="err">${esc(it.view.status)}</span> ${esc((it.view.candidates||[]).join(","))}<div class="row"><button onclick="newView()">Create view with this image as reference…</button></div>`}</fieldset>`;
+  h+=`<fieldset><legend>Target</legend><div class="row"><select id="tsel">${S.meta.targets.map(x=>`<option ${x.key===S.target?"selected":""} value="${esc(x.key)}">${esc(x.key)} · ${esc(x.payload.surface_type)} · ${esc(x.payload.name)}</option>`).join("")}</select><button onclick="newTarget()">+ target</button></div>
+   ${tmeta?`<div>${recLine(tmeta)}</div><div class="row">identity <select id="tid_status">${["proposed","confirmed","unresolved","retired"].map(s=>`<option ${s===tmeta.payload.identity_status?"selected":""}>${s}</option>`).join("")}</select>
+   <input id="tname" value="${esc(tmeta.payload.name)}" size="18"><button onclick="saveTarget()">Save</button><button class="approve" onclick="approve('target','${esc(tmeta.key)}',${tmeta.version})">Approve</button></div>`:""}</fieldset>`;
+  if(t){const acts=Object.keys(t.activities);
+   h+=`<fieldset><legend>Activity applicability</legend><div class="row"><select id="asel">${acts.map(a=>`<option ${a===S.activity?"selected":""}>${esc(a)}</option>`).join("")}</select></div>`;
+   const ap=tmeta&&tmeta.activities[S.activity];const def=S.meta.activities[S.activity]||{};
+   h+=`<div class="small muted">installs: ${esc(def.installs)}<br>criterion: ${esc(def.installed_criterion)} (${esc(def.definition_status)})${(def.labeling_guidance||[]).map(g=>`<br>• ${esc(g)}`).join("")}</div>
+   <div>${recLine(ap)}</div><div class="row"><select id="appl">${["unknown","applicable","not_applicable"].map(s=>`<option ${ap&&s===ap.payload.applicability?"selected":""}>${s}</option>`).join("")}</select>
+   <input id="abasis" placeholder="basis (근거)" value="${esc(ap&&ap.payload.basis)}" size="22"><button onclick="saveAppl()">Save</button>${ap?`<button class="approve" onclick="approve('applicability','${esc(ap.key)}',${ap.version})">Approve</button>`:""}</div></fieldset>`;
+   h+=`<fieldset><legend>Measurement ROI (${esc(S.target)} in ${esc(vr?vr.key:"no view")})</legend><div class="small muted">${esc(S.meta.roi_definitions&&S.meta.roi_definitions.measurement_roi)}</div>
+    <div>${recLine(t.roi)}</div>
+    ${(!t.roi&&vr)?`<div class="row"><button onclick="roiNotVisible('${esc(S.target)}','${esc(vr.key)}')" title="${esc(S.target)} cannot be seen in ${esc(vr.key)}: no ROI needed here">안 보임 (not visible in this view)</button></div>`:""}
+    ${isReferenceImage()?`<div class="row"><button class="${S.tool==="roi"?"on":""}" onclick="setTool('roi')">Draw ROI polygon</button><button class="${S.tool==="excl"?"on":""}" onclick="setTool('excl')">Draw exclusion</button>
+     <button class="${S.tool==="edit"?"on":""}" onclick="setTool(S.tool==='edit'?null:'edit')">Edit vertices</button>
+     <button onclick="S.draftROI={polygons:[],exclusions:[]};S.dirty=true;A.render();renderRight()">Clear</button></div>
+     ${S.tool==="edit"?`<div class="row small">selected: ${esc(S.sel?S.sel.kind+" #"+(S.sel.idx+1):"none")} <button onclick="deleteSelected()">Delete selected polygon</button><button onclick="revertDrafts()">Revert unsaved</button></div>`:""}
+     <div class="small">draft: ${S.draftROI.polygons.length} polygon(s), ${S.draftROI.exclusions.length} exclusion(s)</div>
+     <div class="row small">copy ALL targets' ROIs from <select id="roiFrom">${S.meta.views.filter(v=>v.key!==(vr&&vr.key)).map(v=>`<option>${esc(v.key)}</option>`).join("")}</select>
+       to this view <button onclick="copyRois()">Copy as drafts</button></div>
+     <div class="row"><button class="primary" onclick="saveROI()">Save ROI draft</button>${t.roi?`<button class="approve" onclick="approve('roi','${esc(t.roi.key)}',${t.roi.version})">Approve ROI v${t.roi.version}</button>`:""}</div>`
+     :`<div class="small muted">ROI is edited on the reference image of the view.</div>`}</fieldset>`;
+   const a=t.auto;
+   h+=`<fieldset><legend>Observation (this photo)</legend>${a?`roi_source <b>${esc(a.roi_source)}</b> · ${esc(a.status)} ${t.auto_stale?'<span class="err">stale</span>':""}
+     ${(a.reasons||[]).length?`<ul class="reasons small">${a.reasons.map(r=>`<li>${esc(r)}</li>`).join("")}</ul>`:""}
+     ${a.coverage?`<div class="small">ROI covered by: same-surface polygons ${a.coverage.same_surface_label} · occluders ${a.coverage.occluder_labels} · other ${a.coverage.other_labels}<br>links ${a.link_count} · review items ${a.review_item_count} · quality flags ${esc((a.quality&&a.quality.flags||[]).join(",")||"none")}</div>`:""}`
+     :'<span class="muted">no observation yet</span>'}
+     <div class="row"><button onclick="reassign()">Refresh observation</button>${a&&a.roi_source==="registered_draft"?`<button onclick="confirmRegistered()">Confirm registered ROI (manual obs.)</button>`:""}</div>
+     ${t.manual_obs?`<div class="small">manual: ${recLine(t.manual_obs)} <button class="approve" onclick="approve('observation','${esc(t.manual_obs.key)}',${t.manual_obs.version})">Approve</button></div>`:""}</fieldset>`;
+   const act=t.activities[S.activity]||{};const L=S.draftLabel;
+   h+=`<fieldset><legend>State label · ${esc(S.activity)}</legend><div>${recLine(act.label)}</div>
+    <div class="row"><button class="${S.tool==="installed"?"on":""}" onclick="setTool('installed')">+ installed</button><button class="${S.tool==="not_installed"?"on":""}" onclick="setTool('not_installed')">+ not_installed</button>
+     <button class="${S.tool==="occl"?"on":""}" onclick="setTool('occl')">+ occluded</button>
+     <button class="${S.tool==="edit"?"on":""}" onclick="setTool(S.tool==='edit'?null:'edit')">Edit vertices</button></div>
+    <div class="row"><button class="${S.tool==="undet"?"on":""}" onclick="setTool('undet')">+ undeterminable</button><select id="undetReason">${S.meta.undeterminable_reasons.map(r=>`<option>${esc(r)}</option>`).join("")}</select></div>
+    <div class="row">fill rest of ROI: <select id="fillroi">${["","installed","not_installed"].map(s=>`<option value="${s}" ${(L.fill_roi_state||"")===s?"selected":""}>${s||"(none = unlabeled → ignore)"}</option>`).join("")}</select></div>
+    <div class="row">whole target undeterminable: <select id="wholeundet"><option value="">no</option>${S.meta.undeterminable_reasons.map(r=>`<option ${L.whole_target_undeterminable===r?"selected":""}>${esc(r)}</option>`).join("")}</select></div>
+    <div class="small">draft: ${L.regions.length} state region(s), ${L.undeterminable.length} undeterminable, ${L.occluded.length} occluded ${S.dirty?'<span class="err">(unsaved)</span>':""}</div>
+    <div class="row"><button onclick="importOccluders()">Import occluder candidates</button><button onclick="clearLabel()">Clear</button><button onclick="undoLast()">Undo last region</button></div>
+    <div class="row"><button onclick="clearKind('occluded')">Clear occluded only</button><button onclick="clearKind('undeterminable')">Clear undeterminable only</button></div>
+    ${S.tool==="edit"?`<div class="row small">selected: ${esc(S.sel?S.sel.kind+" #"+(S.sel.idx+1):"none")} <button onclick="deleteSelected()">Delete selected polygon</button><button onclick="revertDrafts()">Revert unsaved</button></div>`:""}
+    <textarea id="lnote" rows="2" style="width:100%" placeholder="note">${esc(L.note)}</textarea>
+    <div class="row"><button class="primary" onclick="saveLabel()">Save label draft</button>${act.label?`<button class="approve" onclick="approve('state_label','${esc(act.label.key)}',${act.label.version})">Approve label v${act.label.version}</button><button onclick="approve('state_label','${esc(act.label.key)}',${act.label.version},'rejected')">Reject</button>`:""}</div>
+    <div class="row"><button onclick="propagateFromPrev()">Copy previous labeled photo (as propagated draft)</button></div>
+    <div class="small"><b>training eligibility:</b> ${act.eligible?badge("approved")+" eligible":`<ul class="reasons">${(act.reasons||[]).map(r=>`<li>${esc(r)}</li>`).join("")}</ul>`}</div>
+    <details><summary class="small">label history (${(act.history||[]).length})</summary><div class="small">${(act.history||[]).map(x=>`v${x.version} ${esc(x.source)} ${esc(x.author)} ${esc(x.created_at)}`).join("<br>")}</div></details></fieldset>`;
+  }
+  h+=`<p class="small muted">${esc(S.meta.ratio_semantics)}</p>`;
+  R.innerHTML=h;
+  const ts=$("#tsel");if(ts)ts.onchange=()=>{if(S.dirty&&!confirm("Discard unsaved drafts?"))return renderRight();S.target=ts.value;S.dirty=false;resetDrafts();renderRight();renderList()};
+  const as=$("#asel");if(as)as.onchange=()=>{if(S.dirty&&!confirm("Discard unsaved drafts?"))return renderRight();S.activity=as.value;S.dirty=false;resetDrafts();renderRight();renderList()};
+  const fr=$("#fillroi");if(fr)fr.onchange=()=>{S.draftLabel.fill_roi_state=fr.value||null;S.dirty=true;A.render();renderRight()};
+  const wu=$("#wholeundet");if(wu)wu.onchange=()=>{S.draftLabel.whole_target_undeterminable=wu.value||null;S.dirty=true;renderRight()};
+  const ln=$("#lnote");if(ln)ln.oninput=()=>{S.draftLabel.note=ln.value;S.dirty=true};
+}
+async function refresh(keepDrafts){const keepR=S.draftROI,keepL=S.draftLabel;await loadMeta();S.item=await api("/api/item/"+S.cur);
+  if(keepDrafts){S.draftROI=keepR;S.draftLabel=keepL}else resetDrafts();await loadList();renderRight();A.render()}
+async function guard(fn,ok){try{const r=await fn();if(ok)msg(ok+(r&&r.invalidated&&r.invalidated.length?` — ${r.invalidated.length} approval(s) invalidated`:""));return r}catch(e){if(e.message!=="no reviewer")msg(e.message,true);throw e}}
+async function approve(kind,key,version,decision){const who=reviewer();if(S.dirty&&!confirm("You have unsaved drafts. Approve the SAVED version anyway?"))return;
+  await guard(()=>api("/api/decide",{kind,key,version,author:who,decision:decision||"approved"}),`${decision||"approved"} ${kind} v${version}`);await refresh(true)}
+function closeOpenPolygon(tools){if(!S.tool||!tools.includes(S.tool)||!S.pts.length)return true;
+  if(uniq(S.pts).length<3){msg("The polygon being drawn is not closed yet (needs 3+ points) / 그리던 폴리곤이 아직 닫히지 않았습니다",true);return false}
+  finishPoly();return true}
+async function roiNotVisible(t,v){const who=reviewer();if(!confirm(`${t}: ${v} 구도에서 안 보임으로 표시할까요? (ROI 요청에서 빠짐)`))return;
+  await guard(()=>api("/api/roi_skip",{author:who,target_id:t,view_id:v,visible:false}),`${t} not visible in ${v}`);await refresh()}
+async function copyRois(){const who=reviewer();const from=$("#roiFrom").value,to=S.item.view_record.key;
+  if(!confirm(`Copy every target ROI of ${from} into ${to} as unapproved drafts (same pixel positions)?\nThen adjust each with Edit vertices and approve.`))return;
+  const r=await guard(()=>api("/api/roi_copy",{author:who,from_view:from,to_view:to}),"ROIs copied");
+  if(r)msg(`copied: ${r.copied.join(", ")||"none"}${r.skipped.length?" · skipped: "+r.skipped.map(x=>x.target+" ("+x.reason+")").join(", "):""} — photos of ${to} refresh in background`);
+  watchBg();await refresh()}
+let bgTimer=null;function watchBg(){if(bgTimer)return;bgTimer=setInterval(async()=>{await loadMeta();await loadList();
+  const b=S.meta.background_refresh||{};$("#runinfo").textContent=$("#runinfo").textContent.replace(/ · refreshing.*$/,"")+(b.running?` · refreshing ROIs ${b.done||0}/${b.images}…`:"");
+  if(!b.running){clearInterval(bgTimer);bgTimer=null;if(S.cur){S.item=await api("/api/item/"+S.cur);renderRight();A.render()}}},4000)}
+async function saveROI(){const who=reviewer();if(!closeOpenPolygon(["roi","excl"]))return;
+  if(!S.draftROI.polygons.length){msg("No closed ROI polygon. Click points, then press Enter (or double-click) to close it / ROI 폴리곤을 Enter로 닫아 주세요",true);return}
+  await guard(()=>api("/api/roi",{author:who,image_id:S.cur,target_id:S.target,view_id:S.item.view_record.key,polygons:S.draftROI.polygons,exclusions:S.draftROI.exclusions}),"ROI draft saved — all photos of this view are being updated");S.dirty=false;watchBg();await refresh()}
+async function saveLabel(){const who=reviewer();if(!closeOpenPolygon(["installed","not_installed","undet","occl"]))return;const L=S.draftLabel;
+  await guard(()=>api("/api/label",{author:who,image_id:S.cur,target_id:S.target,activity_id:S.activity,...L}),"label draft saved");S.dirty=false;await refresh()}
+async function saveTarget(){const who=reviewer();const tm=S.meta.targets.find(x=>x.key===S.target);const p=Object.assign({},tm.payload,{identity_status:$("#tid_status").value,name:$("#tname").value});
+  await guard(()=>api("/api/target",{author:who,payload:p}),"target saved");await refresh(true)}
+async function newTarget(){const who=reviewer();const id=prompt("target_id (e.g. W03, F02, C02)");if(!id)return;const st=prompt("surface_type: wall / floor / ceiling","wall");const name=prompt("name","");
+  await guard(()=>api("/api/target",{author:who,payload:{target_id:id,site_id:S.meta.site_id,surface_type:st,zone_id:null,name,identity_status:"proposed"}}),"target created");S.target=id;await refresh()}
+async function saveAppl(){const who=reviewer();await guard(()=>api("/api/applicability",{author:who,target_id:S.target,activity_id:S.activity,applicability:$("#appl").value,basis:$("#abasis").value}),"applicability saved");await refresh(true)}
+async function editView(){const who=reviewer();const v=S.item.view_record.payload;const st=prompt("start_time (YYYY-MM-DDTHH:MM:SS)",v.start_time);if(st===null)return;const en=prompt("end_time",v.end_time);if(en===null)return;
+  const ref=prompt("reference_image_id",v.reference_image_id);if(!ref)return;await guard(()=>api("/api/view",{author:who,payload:{view_id:v.view_id,start_time:st,end_time:en,reference_image_id:ref}}),"view saved");await refresh()}
+async function newView(){const who=reviewer();const id=prompt("new view_id (e.g. V03)");if(!id)return;const t=S.item.image.capture.time_local;const st=prompt("start_time",t),en=prompt("end_time",t);
+  await guard(()=>api("/api/view",{author:who,payload:{view_id:id,start_time:st,end_time:en,reference_image_id:S.cur}}),"view created");await refresh()}
+async function reassign(){await guard(()=>api("/api/reassign",{author:reviewer(),image_id:S.cur}),"observation refreshed");await refresh(true)}
+async function confirmRegistered(){const who=reviewer();const a=S.item.targets[S.target].auto;
+  await guard(()=>api("/api/observation",{author:who,image_id:S.cur,target_id:S.target,roi:a.roi,confirmed_from:"registered_draft",note:"reviewer confirmed registered ROI"}),"manual observation saved (approve it next)");await refresh()}
+function importOccluders(){const a=S.item.targets[S.target].auto;if(!a)return;let n=0;for(const c of a.occlusion_candidates||[])for(const p of c.polygons){S.draftLabel.occluded.push({polygons:[p],note:"imported from object-polygon occluder candidates"});n++}
+  S.dirty=true;msg(`${n} occluder polygon(s) imported — check them`);A.render();renderRight()}
+function clearKind(k){const n=S.draftLabel[k].length;if(!n){msg(`no ${k} regions`);return}S.draftLabel[k]=[];if(k==="undeterminable")S.draftLabel.whole_target_undeterminable=null;
+  S.dirty=true;msg(`${n} ${k} region(s) removed — press Save label draft`);A.render();renderRight()}
+function clearLabel(){S.draftLabel={regions:[],undeterminable:[],occluded:[],fill_roi_state:null,whole_target_undeterminable:null,note:""};S.dirty=true;A.render();renderRight()}
+function undoLast(){const L=S.draftLabel;for(const k of ["regions","undeterminable","occluded"]){}if(L.regions.length)L.regions.pop();else if(L.undeterminable.length)L.undeterminable.pop();else if(L.occluded.length)L.occluded.pop();S.dirty=true;A.render();renderRight()}
+async function propagateFromPrev(){const who=reviewer();const prev=[...S.images].filter(i=>i.time&&S.item.image.capture.time_local&&i.time<S.item.image.capture.time_local&&i.labels.length).pop();
+  if(!prev){msg("no earlier labeled photo",true);return}if(!confirm(`Copy label from ${prev.image_id} as a propagated DRAFT? You must verify it against this photo.`))return;
+  await guard(()=>api("/api/propagate",{author:who,src_image_id:prev.image_id,dst_image_id:S.cur,target_id:S.target,activity_id:S.activity}),"propagated draft created");await refresh()}
+document.querySelectorAll("[data-layer]").forEach(c=>c.onchange=()=>{S.layers[c.dataset.layer]=c.checked;A.render();B.render()});
+$("#compare").onchange=loadRef;$("#fit").onclick=()=>{A.fit();B.fit()};for(const id of ["filter","fview","fstatus","fhideoccl","foccl","fhidedark","fhidedup","ffrom","fto"])$("#"+id).onchange=renderList;$("#search").oninput=renderList;$("#foccl").oninput=renderList;
+window.addEventListener("beforeunload",e=>{if(S.dirty){e.preventDefault();e.returnValue=""}});
+function hashParams(){const h=new URLSearchParams(location.hash.slice(1));return h}
+(async()=>{await loadMeta();watchBg();if(!S.activity&&S.meta.targets.length){const t=S.meta.targets.find(x=>x.key===S.target);S.activity=t?Object.keys(t.activities)[0]:null}
+  const hp=hashParams();
+  // many photos: start with the automatic samples instead of everything
+  if(hp.get("filter"))$("#filter").value=hp.get("filter");
+  await loadList();
+  if(!hp.get("filter")&&S.images.some(i=>i.sample)){$("#filter").value="samples";renderList()}
+  if(hp.get("status"))$("#fstatus").value=hp.get("status");
+  const want=hp.get("open");const first=(want&&S.images.find(i=>i.image_id===want))||filtered()[0]||S.images.find(i=>i.is_view_reference)||S.images[0];
+  if(first)await openImage(first.image_id);renderList();renderRight();if(hp.get("grid"))toggleGrid()})().catch(e=>msg(e.message,true));
+</script>
+</body>
+</html>

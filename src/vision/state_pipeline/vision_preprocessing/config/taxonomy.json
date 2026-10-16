@@ -1,0 +1,211 @@
+{
+  "schema_version": "taxonomy/1",
+  "taxonomy_version": "2026-10-13.1",
+  "notes": "Activity definitions and the 'installed' criterion are NOT confirmed by the site/construction lead. definition_status must be changed by a human after confirmation. Nothing in this file is applied to a site automatically: site configs declare targets and applicability (default 'unknown').",
+  "surface_types": {
+    "wall": {
+      "object_labels": [
+        "wall"
+      ],
+      "description": "vertical wall plane (finished or unfinished)"
+    },
+    "floor": {
+      "object_labels": [
+        "floor"
+      ],
+      "description": "floor surface / slab"
+    },
+    "ceiling": {
+      "object_labels": [
+        "ceiling"
+      ],
+      "description": "ceiling plane"
+    }
+  },
+  "object_classes": {
+    "source": "No object class-ID mapping exists in qa_v2/qa_v3 (checked 2026-10-13: no label_map/class_id in code). IDs below were fixed from the label set observed in SITE_A output JSON (300-file sample: wall, floor, metal stud framing, ceiling, construction materials, Tools, person, unidentifiable, HVAC ductwork). Labels are matched case-insensitively after trimming.",
+    "ignore_value": 255,
+    "unlabeled_policy": "ignore",
+    "classes": [
+      {
+        "id": 0,
+        "name": "wall",
+        "labels": [
+          "wall"
+        ],
+        "layer": "surface"
+      },
+      {
+        "id": 1,
+        "name": "floor",
+        "labels": [
+          "floor"
+        ],
+        "layer": "surface"
+      },
+      {
+        "id": 2,
+        "name": "ceiling",
+        "labels": [
+          "ceiling"
+        ],
+        "layer": "surface"
+      },
+      {
+        "id": 3,
+        "name": "metal_stud_framing",
+        "labels": [
+          "metal stud framing"
+        ],
+        "layer": "building_element"
+      },
+      {
+        "id": 4,
+        "name": "hvac_ductwork",
+        "labels": [
+          "hvac ductwork"
+        ],
+        "layer": "building_element"
+      },
+      {
+        "id": 5,
+        "name": "construction_materials",
+        "labels": [
+          "construction materials"
+        ],
+        "layer": "foreground"
+      },
+      {
+        "id": 6,
+        "name": "tools",
+        "labels": [
+          "tools"
+        ],
+        "layer": "foreground"
+      },
+      {
+        "id": 7,
+        "name": "person",
+        "labels": [
+          "person"
+        ],
+        "layer": "foreground"
+      }
+    ],
+    "ignore_labels": [
+      "unidentifiable"
+    ],
+    "layers": {
+      "order_front_to_back": [
+        "foreground",
+        "building_element",
+        "surface"
+      ],
+      "policy": "Overlap between different layers is treated as a legitimate occlusion: the front layer wins. Overlap between different classes in the SAME layer is a conflict and becomes ignore (255). Overlap of shapes with the same class is a union. JSON shape order is never used.",
+      "policy_status": "unconfirmed_default"
+    }
+  },
+  "occluder_labels": {
+    "labels": [
+      "person",
+      "tools",
+      "construction materials"
+    ],
+    "use": "Object polygons of these labels inside a target ROI become occlusion *candidates* (draft). In training export they are ignored (255) unless --no-auto-occluder-ignore is given."
+  },
+  "activities": {
+    "wall_board_installation": {
+      "surface_types": [
+        "wall"
+      ],
+      "installs": "wall board (e.g. gypsum board) fastened over wall framing",
+      "states": [
+        "not_installed",
+        "installed"
+      ],
+      "installed_criterion": "UNCONFIRMED - e.g. board fastened over framing regardless of taping/finish",
+      "definition_status": "unconfirmed",
+      "labeling_guidance": [
+        "Boards leaning against the wall/framing are NOT installed: mark that area occluded (or undeterminable), never installed.",
+        "Existing surface visible behind open framing is not new board.",
+        "A bright panel alone does not prove board installation; joint/fastener evidence or context is needed.",
+        "Paint coat count / final inspection is not judged from a white wall."
+      ]
+    },
+    "floor_finish_installation": {
+      "surface_types": [
+        "floor"
+      ],
+      "installs": "floor finish material (type to be confirmed: tile / vinyl / carpet / ...)",
+      "states": [
+        "not_installed",
+        "installed"
+      ],
+      "installed_criterion": "UNCONFIRMED",
+      "definition_status": "unconfirmed",
+      "labeling_guidance": [
+        "Floor protection (paper/board/film) hides the finish: mark covered area undeterminable (reason covered_by_protection).",
+        "Removal of protection is NOT the finish completion time."
+      ]
+    },
+    "ceiling_panel_installation": {
+      "surface_types": [
+        "ceiling"
+      ],
+      "installs": "ceiling panels or ceiling board (type to be confirmed)",
+      "states": [
+        "not_installed",
+        "installed"
+      ],
+      "installed_criterion": "UNCONFIRMED",
+      "definition_status": "unconfirmed",
+      "labeling_guidance": [
+        "The ceiling may be an exposed (open) design: keep applicability 'unknown' until confirmed; exposed structure is not 'not_installed' by itself."
+      ]
+    }
+  },
+  "state_export": {
+    "values": {
+      "not_installed": 0,
+      "installed": 1
+    },
+    "ignore_value": 255,
+    "optional_occluded_class": 2,
+    "ignored_by_default": [
+      "outside_roi",
+      "unreviewed",
+      "unlabeled",
+      "occluded",
+      "undeterminable",
+      "label_conflict"
+    ]
+  },
+  "visibility_export": {
+    "values": {
+      "outside_roi": 0,
+      "visible": 1,
+      "occluded": 2,
+      "undeterminable": 3
+    },
+    "notes": "visible = inside an ROI and not marked occluded/undeterminable. It does NOT mean the state is known."
+  },
+  "undeterminable_reasons": [
+    "occluded",
+    "leaning_material_in_front",
+    "covered_by_protection",
+    "motion_blur",
+    "out_of_focus",
+    "low_light",
+    "overexposed",
+    "partial_view",
+    "ambiguous_boundary",
+    "work_in_progress_unclear",
+    "other"
+  ],
+  "roi_definitions": {
+    "measurement_roi": "The target surface or work zone to be evaluated (full extent, including not-yet-installed and occluded parts). Openings/doors that are not part of the work are explicit exclusions.",
+    "object_mask": "Area recognized as wall/floor/ceiling etc. in one photo (existing JSON). Not the ROI and not a state label.",
+    "observable_region": "Part of the measurement ROI that can be judged in that photo (ROI minus occlusion / undeterminable). Occlusion never shrinks the ROI."
+  },
+  "ratio_semantics": "Pixel ratios are 'installed share within the observable image area of the target ROI'. They are not real-area progress, not store-wide progress and carry no perspective correction or activity weighting."
+}

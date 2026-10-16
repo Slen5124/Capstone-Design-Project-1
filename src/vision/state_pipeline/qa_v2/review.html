@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>어노테이션 검수</title>
+<style>
+:root { color-scheme: light; --ink:#20303b; --muted:#64727d; --line:#dce2e5; --paper:#fff; --bg:#f4f6f6; --blue:#166475; --amber:#9a5c00; --red:#b94335; --teal:#087a72; }
+* { box-sizing:border-box; } body { margin:0; font-family:"Malgun Gothic", system-ui, sans-serif; color:var(--ink); background:var(--bg); font-size:14px; }
+button,input,select,textarea { font:inherit; } button { cursor:pointer; border:1px solid var(--line); background:white; border-radius:7px; color:var(--ink); padding:9px 12px; } button:hover { background:#eef4f4; } button:disabled { opacity:.5; cursor:default; } button.primary { background:var(--blue); border-color:var(--blue); color:white; } button.danger { color:var(--red); }
+input,select,textarea { border:1px solid #bcc9ce; border-radius:6px; padding:8px; background:white; color:var(--ink); max-width:100%; } input[type=checkbox] { width:17px; height:17px; accent-color:var(--blue); flex-shrink:0; } textarea { width:100%; min-height:78px; resize:vertical; }
+header { background:white; border-bottom:1px solid var(--line); padding:18px 24px; display:flex; gap:24px; align-items:center; justify-content:space-between; } h1 { font-size:21px; margin:0 0 5px; letter-spacing:-.5px; } h2 { font-size:16px; margin:0 0 12px; } h3 { font-size:14px; margin:15px 0 8px; } p { margin:7px 0; line-height:1.65; } .muted { color:var(--muted); } .small { font-size:12px; } .pill { background:#eef4f4; border-radius:30px; padding:7px 11px; white-space:nowrap; font-size:12px; }
+nav { padding:14px 24px 0; display:flex; gap:7px; } nav button { min-width:130px; border-radius:7px 7px 0 0; } nav button.active { background:var(--ink); border-color:var(--ink); color:white; }
+.layout { display:grid; grid-template-columns:330px minmax(420px,1fr) 340px; gap:14px; padding:14px 24px 24px; } .card { border:1px solid var(--line); border-radius:10px; background:var(--paper); padding:16px; min-width:0; } .stack { display:flex; flex-direction:column; gap:12px; } .row { display:flex; gap:7px; align-items:center; flex-wrap:wrap; } .grow { flex:1; min-width:80px; } .full { width:100%; } .notice { border-left:3px solid #c88a28; padding:9px 11px; background:#fff6e6; color:#6c4b1c; font-size:12px; line-height:1.65; } .info { border-left-color:var(--blue); background:#eef6f7; color:#245762; } .empty { padding:20px 5px; color:var(--muted); line-height:1.8; }
+.list { display:flex; flex-direction:column; gap:7px; max-height:56vh; overflow:auto; } .item { text-align:left; width:100%; display:block; padding:10px; background:white; border:1px solid var(--line); border-radius:7px; overflow-wrap:anywhere; } .item.active { border-color:var(--blue); box-shadow:inset 3px 0 var(--blue); background:#f2f8f8; } .item .title { font-size:12px; display:block; line-height:1.45; } .item .meta { display:block; margin-top:4px; font-size:11px; color:var(--muted); } .tag { display:inline-block; padding:3px 6px; background:#fff0db; color:var(--amber); border-radius:4px; font-size:11px; margin:3px 4px 0 0; }
+.canvasCard { padding:0; overflow:hidden; display:flex; flex-direction:column; } .canvasHead { padding:14px 16px; border-bottom:1px solid var(--line); } .canvasHead .name { font-size:13px; overflow-wrap:anywhere; font-weight:600; } .stage { background:#e8edef; padding:12px; overflow:auto; height:66vh; min-height:350px; position:relative; } canvas { display:block; width:100%; height:auto; background:white; box-shadow:0 2px 12px #0002; cursor:crosshair; } canvas.browse { cursor:default; } .stage .empty { text-align:center; margin-top:60px; } .legend { border-top:1px solid var(--line); padding:12px 16px; display:flex; flex-wrap:wrap; gap:10px; color:var(--muted); font-size:11px; } .dot { display:inline-block; width:11px; height:11px; border-radius:3px; margin-right:4px; vertical-align:-1px; } .toolbar { padding:10px 16px; border-bottom:1px solid var(--line); display:flex; gap:6px; flex-wrap:wrap; align-items:center; } .toolbar button { font-size:12px; padding:7px 9px; } .toolbar label { font-size:12px; display:flex; align-items:center; gap:4px; } .toolbar input[type=range] { width:78px; padding:0; } .path { font-size:11px; overflow-wrap:anywhere; color:var(--muted); }
+.region { border:1px solid var(--line); border-radius:7px; padding:10px; } .region.active { border-color:var(--teal); background:#f0f9f7; } .region button { font-size:11px; padding:5px 7px; } .field { display:flex; flex-direction:column; gap:5px; margin:10px 0; } .check { display:flex; align-items:flex-start; gap:8px; line-height:1.55; margin:12px 0; } .region .fields { display:grid; grid-template-columns:1fr 1fr; gap:7px; } .region .fields input { width:100%; font-size:12px; } .region .fields label { font-size:11px; color:var(--muted); } .region .fields label.wide { grid-column:1 / -1; } .issues { padding-left:18px; line-height:1.65; } .issues li { margin:6px 0; overflow-wrap:anywhere; } .metric { padding:8px 0; border-bottom:1px solid var(--line); font-size:12px; overflow-wrap:anywhere; } .metric pre { white-space:pre-wrap; font:11px/1.5 system-ui; margin:5px 0; color:var(--muted); } a.download { display:inline-block; color:var(--blue); padding:9px 0; } .status { font-size:12px; line-height:1.55; padding:8px 11px; background:#edf3f3; border-radius:6px; } .status.error { background:#fff0ec; color:#a2362e; }
+details pre { white-space:pre-wrap; overflow-wrap:anywhere; font:11px/1.5 system-ui; color:var(--muted); } [hidden] { display:none !important; } @media(max-width:1200px) { .layout { grid-template-columns:280px minmax(400px,1fr); } .details { grid-column:1 / -1; } .details .stack { display:grid; grid-template-columns:1fr 1fr; } .stage { height:60vh; } } @media(max-width:760px) { header { padding:15px; align-items:flex-start; } header .pill { display:none; } nav { padding:12px 15px 0; } .layout { display:flex; flex-direction:column; padding:12px 15px; } .list { max-height:240px; } .stage { min-height:260px; height:52vh; } .details .stack { display:flex; } }
+</style>
+</head>
+<body>
+<header><div><h1>어노테이션 검수</h1><div class="muted small">확인된 기준 영역으로 누락·라벨 충돌을 찾고, 원본을 보존하며 검수합니다.</div></div><span class="pill">로컬 ZIP · 기준은 사람이 확인</span></header>
+<nav aria-label="검수 단계"><button id="tabReference" class="active" type="button">1. 기준 사진 확인</button><button id="tabResults" type="button">2. 검사 결과 검수</button></nav>
+<main class="layout">
+<section class="card stack">
+ <div id="referenceSidebar">
+  <h2>대표사진 기준</h2><p class="small muted">기존 대표사진이 등록되어 있으면 선택하세요. 없으면 원본 ZIP에서 파일명을 검색해 추가합니다.</p>
+  <div id="referenceCount" class="status">기준을 불러오는 중입니다.</div><div id="referenceList" class="list" style="margin-top:10px"></div>
+  <h3>원본 사진 찾기</h3><div class="row"><input id="photoQuery" class="grow" placeholder="파일명 또는 경로 일부" aria-label="원본 사진 검색어"><button id="searchPhotos" type="button">검색</button></div><div id="searchStatus" class="small muted" style="margin:7px 0"></div><div id="photoList" class="list" style="max-height:240px"></div>
+ </div>
+ <div id="resultSidebar" hidden>
+  <h2>검수 대상</h2><p class="small muted">규칙에 걸리지 않은 사진도 시각 검수 합격으로 처리하지 않습니다.</p>
+  <select id="resultFilter" class="full" aria-label="결과 필터"><option value="all">모든 결과</option><option value="issues">문제 코드가 있는 결과</option><option value="no_rule_trigger">규칙에 걸리지 않은 결과</option><option value="correction">수정본이 있는 결과</option></select><div id="resultCount" class="small muted" style="margin:10px 0"></div><div id="resultList" class="list"></div>
+ </div>
+ <button id="reloadState" type="button">기준·검사 결과 새로고침</button><div id="globalStatus" class="status" role="status" aria-live="polite">원본 사진과 JSON은 이 화면에서 덮어쓰지 않습니다.</div>
+</section>
+<section class="card canvasCard">
+ <div class="canvasHead"><div id="imageTitle" class="name">사진을 선택하세요</div><div id="imagePath" class="path"></div><div id="imageSize" class="small muted"></div></div>
+ <div class="toolbar"><label><input id="showAnnotations" type="checkbox" checked>현재 라벨</label><label><input id="showRegions" type="checkbox" checked>기준 영역</label><label><input id="zoom" type="range" min="100" max="250" value="100" aria-label="이미지 확대"><span id="zoomValue">100%</span></label></div>
+ <div id="drawingTools" class="toolbar"><select id="regionLabel" aria-label="새 기준 영역 라벨"><option value="wall">wall · 벽</option><option value="ceiling">ceiling · 천장</option></select><button id="startRegion" type="button">영역 그리기</button><button id="startExclusion" type="button" disabled>가림 영역 제외</button><button id="undoPoint" type="button" disabled>마지막 점 취소</button><button id="finishPolygon" type="button" disabled>도형 확정</button><button id="cancelPolygon" type="button" disabled>취소</button><span id="drawingStatus" class="small muted">사진을 선택한 뒤 기준 영역을 그립니다.</span></div>
+ <div id="stage" class="stage"><div id="imageEmpty" class="empty">확인할 사진을 왼쪽에서 선택하세요.<br>사진은 ZIP에서 읽으며 전체 압축을 풀지 않습니다.</div><canvas id="canvas" class="browse" hidden aria-label="사진과 어노테이션 검수 캔버스"></canvas></div>
+ <div class="legend"><span><i class="dot" style="background:#087a72"></i>확인할 기준 영역</span><span><i class="dot" style="background:#7a59ac"></i>제외 영역</span><span><i class="dot" style="background:#f39c32"></i>wall 라벨</span><span><i class="dot" style="background:#5695e2"></i>ceiling 라벨</span><span><i class="dot" style="background:#b94335"></i>그리는 도형</span></div>
+</section>
+<section class="card details"><div class="stack">
+ <div id="referenceDetails">
+  <h2>기준 영역과 확인 상태</h2><div id="referenceOrigin" class="status" style="margin-bottom:10px">정답 기준 없음</div><div class="notice">AI 초안은 사람의 정답 기준으로 확정되지 않았습니다. 현재 보이는 벽·천장을 직접 확인한 후 저장하세요. 같은 평면의 안정적인 영역을 선택하고 가려진 부분은 제외하세요. 카메라 이동·구도 변경·새로운 가림이 있는 사진은 별도 확인이 필요합니다.</div>
+  <div id="regionsList" class="stack" style="margin-top:12px"></div><p id="noRegions" class="empty">정답 기준 없음<br>벽·천장 영역을 아직 저장하지 않았습니다.</p>
+  <label class="field">확인자<input id="reviewer" placeholder="이름 또는 식별명" autocomplete="off"></label><label class="check"><input id="confirmedReference" type="checkbox"><span>이 사진에서 벽/천장 기준을 확인했습니다.</span></label><button id="saveReference" class="primary full" type="button" disabled>확인된 기준 저장</button><p class="small muted">선택한 사진의 기준만 저장합니다. 다른 사진에 적용한 위치가 맞는지는 검사 결과에서 다시 확인합니다.</p>
+ </div>
+ <div id="resultDetails" hidden>
+  <h2>오류 후보와 검수 기록</h2><div id="resultState" class="status">왼쪽에서 결과를 선택하세요.</div><ul id="issuesList" class="issues"></ul><div id="semanticNotice" class="notice info">벽 누락·라벨 충돌 판정은 확인된 기준과 정합 근거가 필요합니다. 기준이 없거나 정합이 불안정하면 추가 확인 대상으로 남습니다.</div>
+  <h3>영역 비교·정합 근거</h3><div id="rasterDiagnosticNotice" class="notice" hidden>픽셀 채움 진단은 제출된 좌표를 그대로 채웠을 때 기준 영역과 겹치는 비율을 계산한 보조 검사입니다. 잘못된 폴리곤을 고치거나 벽·천장의 정답을 검증한 결과는 아닙니다. 수치는 Pillow 픽셀 채움 기준이며 이 화면의 경계 픽셀과 차이가 있을 수 있습니다.</div><div id="metricsList"></div>
+  <div id="duplicateSection" hidden><h3>중복·충돌 도형 중 남길 도형 선택</h3><div class="notice">사진에서 같은 객체를 중복 표시한 것이 맞는지 확인하고, 좌표와 라벨이 올바른 도형을 직접 선택하세요. 점수가 높은 도형을 자동으로 선택하지 않습니다. 둘 다 틀렸다면 선택하지 않고 추가 확인으로 남기세요. 수정본은 별도 초안으로 저장됩니다.</div><label class="field">중복 수정 확인자<input id="duplicateReviewer" placeholder="사진을 확인한 사람의 이름 또는 식별명" autocomplete="off"></label><div id="duplicateGroups" class="stack"></div><p class="small muted">원본 JSON은 보존됩니다. 수정 초안도 검수 전에는 학습용 정답으로 사용하지 않습니다.</p></div>
+  <div id="correctionInfo"></div>
+  <label class="field">검수 결정<select id="reviewDecision"><option value="needs_review">추가 확인 필요</option><option value="confirmed_candidate">오류 후보 확인</option><option value="false_positive">오탐 확인</option></select></label><label class="field">판단 근거<textarea id="reviewNote" placeholder="예: 벽 영역이 실제로 보이지만 wall 라벨이 없습니다."></textarea></label><button id="saveReview" class="primary full" type="button" disabled>검수 기록 저장</button><p class="small muted">검수 기록 저장으로 라벨이 자동 변경되지는 않습니다. 수정본 링크가 있을 때 별도로 내려받아 확인할 수 있습니다.</p>
+ </div>
+</div></section>
+</main>
+<script>
+'use strict';
+const $ = id => document.getElementById(id);
+const canvas = $('canvas'), ctx = canvas.getContext('2d');
+let state = {references:[], results:[]}, mode='reference', photo=null, loadedImage=null, shapes=[], originalShapes=[], regions=[], selectedRegion=-1, draft=[], drawMode=null, result=null, imageRevision=0, duplicateFocus=[], duplicateKeep=null, duplicateUpdates=[];
+const issueNames = {
+ wall_missing:'벽 전체 누락 후보', whole_wall_missing:'벽 전체 누락 후보', semantic_missing:'기준 라벨 누락 후보', semantic_label_conflict:'기준 영역의 라벨 충돌', label_conflict:'기준 영역의 라벨 충돌', reference_label_conflict:'기준 영역의 라벨 충돌', roi_low_coverage:'기준 영역의 라벨 커버리지 부족', roi_missing_label:'기준 영역의 라벨 누락', duplicate_shape:'중복 도형 후보', near_duplicate_shape:'거의 동일한 중복 도형', exact_duplicate_shape:'완전히 같은 중복 도형', empty_annotations:'빈 어노테이션', empty_label:'빈 라벨', invalid_polygon:'잘못된 폴리곤', out_of_bounds:'이미지 범위 밖 좌표', missing_json:'연결된 JSON 없음', missing_photo:'연결된 사진 없음', ambiguous_match:'사진·JSON 연결이 모호함', registration_failed:'사진 정합 실패', registration_unverified:'사진 정합 추가 확인 필요', no_rule_trigger:'규칙에 걸리지 않음 · 시각적 합격 아님', abstain:'판정 보류', review_candidate:'우선 검수 후보', NO_REVIEWED_TEACHER_CRITERIA:'사람이 확인한 정답 기준 없음 · 의미 오류 검사 미완료', REFERENCE_UNUSABLE_OR_AMBIGUOUS:'기준을 적용할 수 없거나 기준 연결이 모호함', SOME_REFERENCE_REGIONS_UNUSABLE:'일부 기준 영역을 적용할 수 없음', ANNOTATION_MISSING_CANNOT_MEASURE_LABEL_COVERAGE:'어노테이션이 없어 라벨 커버리지를 계산할 수 없음', reviewed_roi_rules_only:'사람이 확인한 해당 사진의 기준 영역만 검사', provisional_reference_projection:'다른 사진에 옮긴 임시 기준 · 시각 확인 필요', not_checked:'의미 오류 미검사', partial_abstain:'일부 영역 판정 보류'
+};
+issueNames.provisional_reference_rules_only='임시 기준으로 의미 오류 후보 계산 · 사람 확인 필요';
+issueNames.REFERENCE_PROJECTION_REQUIRES_VISUAL_REVIEW='기준 적용 위치와 가림 상태의 시각 확인 필요';
+issueNames.rendered_reference_rules_only='확인된 기준 영역의 픽셀 채움 진단 · 시각적 합격 아님';
+issueNames.provisional_rendered_reference_rules_only='AI 초안 또는 투영 기준의 픽셀 채움 진단 · 사람 확인 필요';
+issueNames.RASTER_DIAGNOSTICS_ARE_RENDERER_EVIDENCE_ONLY='픽셀 채움 진단은 보조 근거이며 좌표·라벨의 정답 판정이 아님';
+function status(message,error=false) { $('globalStatus').textContent=message; $('globalStatus').classList.toggle('error',error); }
+function elem(tag,text,className) { const el=document.createElement(tag); if(text!==undefined) el.textContent=text; if(className) el.className=className; return el; }
+function clear(el) { el.replaceChildren(); }
+function fileName(path) { return String(path||'').split(/[\\/]/).pop(); }
+function clone(data) { return JSON.parse(JSON.stringify(data)); }
+function issueCode(i) { return typeof i==='string' ? i : String(i?.code || i?.issue || i?.type || ''); }
+function readable(i) {
+ const code=issueCode(i);let name=issueNames[code];
+ if(!name){
+  if(code.includes('_RENDERED_EXPECTED_LABEL_ABSENT'))name='픽셀 채움 진단: 기준 라벨 전체 누락 후보';
+  else if(code.includes('_RENDERED_LOW_LABEL_COVERAGE'))name='픽셀 채움 진단: 기준 영역의 라벨 부족';
+  else if(code.includes('_RENDERED_CONFLICTING_LABEL_'))name='픽셀 채움 진단: 잘못된 라벨과 겹친 후보';
+  else if(code.includes('_RENDERED_EXPECTED_LABEL_UNUSABLE'))name='기준 라벨의 일부 좌표를 채울 수 없어 픽셀 진단 보류';
+  else if(code.includes('_RENDERED_CONFLICT_LABEL_')&&code.endsWith('_PARTIAL'))name='충돌 라벨의 일부 좌표를 채울 수 없음 · 불완전한 비교';
+  else if(code.includes('_RENDERED_MEASUREMENT_FAILED'))name='픽셀 채움 진단 계산 실패 · 판정 보류';
+  else if(code==='EMPTY_SHAPES')name='빈 어노테이션';
+  else if(code==='MISSING_JSON')name='연결된 JSON 없음';
+  else if(code==='ORPHAN_JSON')name='연결된 사진 없음';
+  else if(code.includes('AMBIGUOUS'))name='사진·JSON 연결이 모호함';
+  else if(code.includes('EXPECTED_LABEL_ABSENT'))name='기준 영역의 라벨 전체 누락 후보';
+  else if(code.includes('LOW_LABEL_COVERAGE'))name='기준 영역의 라벨 커버리지 부족';
+  else if(code.includes('CONFLICTING_LABEL_'))name='기준 영역을 잘못된 라벨이 덮은 후보';
+  else if(code.includes('EXPECTED_LABEL_GEOMETRY_UNCERTAIN'))name='기준 라벨의 도형이 불안정함 · 추가 확인 필요';
+  else if(code.startsWith('SEMANTIC_SHAPE_'))name='의미 비교에 사용할 수 없는 도형 · 추가 확인 필요';
+  else if(code.includes('OUT_OF_BOUNDS'))name='이미지 범위 밖 좌표';
+  else if(code.includes('INVALID_LABEL'))name='빈 라벨 또는 잘못된 라벨';
+  else if(code.includes('DEGENERATE_OR_INVALID_POLYGON'))name='잘못되거나 면적이 없는 폴리곤';
+  else if(code.includes('INVALID_POINTS')||code.includes('INSUFFICIENT_DISTINCT_POINTS'))name='잘못된 좌표 또는 부족한 꼭짓점';
+  else if(code.startsWith('EXACT_LITERAL_DUPLICATE_SHAPES_'))name='내용이 완전히 같은 중복 · 남긴 좌표 오류는 별도 확인';
+  else if(code.startsWith('EXACT_DUPLICATE_SHAPES_'))name='완전히 같은 중복 도형';
+  else if(code.startsWith('NEAR_DUPLICATE_SHAPES_'))name='거의 같은 중복 도형 · 사람이 남길 도형 선택';
+  else if(code.startsWith('CROSS_LABEL_OVERLAP_SHAPES_'))name='거의 같은 영역에 서로 다른 라벨 · 사람이 맞는 도형과 라벨 선택';
+  else if(code.startsWith('DUPLICATE_SHAPES_'))name='중복 도형 후보';
+  else if(code.startsWith('EXACT_DUPLICATE_IMAGE_GROUP_'))name='같은 사진 중복';
+  else if(code.includes('IMAGE_SIZE_MISMATCH'))name='JSON과 사진 크기 불일치';
+  else if(code.includes('DECODE_ERROR'))name='사진 디코딩 실패';
+ }
+ name=name?name+' ['+code+']':code||'검수 정보';return typeof i==='object'&&i?.message?name+' — '+String(i.message):name;
+}
+async function api(path,body) { const response=await fetch(path,body===undefined ? {cache:'no-store'} : {method:'POST',headers:{'Content-Type':'application/json','X-QA-Token':'__QA_TOKEN__'},body:JSON.stringify(body)}); const data=await response.json().catch(()=>({error:'응답을 읽을 수 없습니다.'})); if(!response.ok) throw Error(data.error||data.message||'요청 실패 ('+response.status+')'); return data; }
+function sourceKey(source) { return String(source?.zip||'')+'\n'+String(source?.entry||''); }
+function humanReviewed(ref) { return ref.reviewed===true&&ref.human_confirmed!==false&&ref.reference_origin!=='assistant_visual_draft'; }
+async function reload() { try { state=await api('/api/state'); state.references=state.references||[]; state.results=state.results||[]; renderReferences(); renderResults(); status('기준 '+state.references.length+'개 · 검사 결과 '+state.results.length+'개를 불러왔습니다.'); } catch(e) { status(e.message,true); } }
+function setMode(next) { ++imageRevision;mode=next; cancelDrawing(); $('tabReference').classList.toggle('active',next==='reference'); $('tabResults').classList.toggle('active',next==='results'); $('referenceSidebar').hidden=next!=='reference'; $('referenceDetails').hidden=next!=='reference'; $('drawingTools').hidden=next!=='reference'; $('resultSidebar').hidden=next!=='results'; $('resultDetails').hidden=next!=='results'; photo=null; loadedImage=null; shapes=[]; originalShapes=[]; regions=[]; result=null;duplicateFocus=[];duplicateKeep=null;duplicateUpdates=[]; $('canvas').hidden=true; $('imageEmpty').hidden=false; $('imageTitle').textContent='사진을 선택하세요'; $('imagePath').textContent=''; $('imageSize').textContent='';$('referenceOrigin').textContent='정답 기준 없음';$('confirmedReference').checked=false;renderRegions();$('resultState').textContent='왼쪽에서 결과를 선택하세요.';clear($('issuesList'));clear($('metricsList'));clear($('correctionInfo'));clear($('duplicateGroups'));$('duplicateSection').hidden=true;$('rasterDiagnosticNotice').hidden=true;$('reviewNote').value=''; $('saveReview').disabled=true; }
+function renderReferences() {
+ const list=$('referenceList'); clear(list); const reviewed=state.references.filter(humanReviewed).length, drafts=state.references.filter(r=>r.reference_origin==='assistant_visual_draft'&&!humanReviewed(r)).length;
+ $('referenceCount').textContent=state.references.length ? '등록 '+state.references.length+'개 · 사람 확인 '+reviewed+'개 · AI 초안 '+drafts+'개' : '정답 기준 없음 · 대표사진을 추가해 주세요.';
+ for(const ref of state.references) { const button=elem('button',undefined,'item'); button.type='button';const label=humanReviewed(ref)?'사람이 확인한 기준':ref.reference_origin==='assistant_visual_draft'?'AI 초안 · 사람 확인 전':'확인 전';button.append(elem('span',fileName(ref.source?.entry)||ref.id,'title'),elem('span',label+' · '+(ref.regions||[]).length+'개 영역','meta'));if(ref.reference_origin==='assistant_visual_draft'&&!humanReviewed(ref))button.append(elem('span','정답 기준 미확정','tag'));button.addEventListener('click',()=>loadReference(ref)); list.append(button); }
+}
+async function searchPhotos() {
+ const query=$('photoQuery').value.trim(); if(!query) { $('searchStatus').textContent='파일명이나 경로 일부를 입력하세요.'; return; }
+ $('searchPhotos').disabled=true; $('searchStatus').textContent='원본 사진 검색 중…';
+ try { let found=await api('/api/search?q='+encodeURIComponent(query)); found=Array.isArray(found)?found:(found.photos||found.results||[]); clear($('photoList')); $('searchStatus').textContent=found.length+'개 표시 (검색당 최대 50개)'; for(const source of found) { const button=elem('button',undefined,'item'); button.type='button'; button.append(elem('span',fileName(source.entry),'title'),elem('span',fileName(source.zip),'meta')); button.title=source.entry; button.addEventListener('click',()=>{const ref=state.references.find(r=>sourceKey(r.source)===sourceKey(source)); loadReference(ref||{source,regions:[],reviewed:false});}); $('photoList').append(button); } } catch(e) { $('searchStatus').textContent=e.message; status(e.message,true); } finally { $('searchPhotos').disabled=false; }
+}
+async function loadPhoto(source) {
+ const revision=++imageRevision; photo={zip:source.zip,entry:source.entry}; loadedImage=null; shapes=[]; originalShapes=[]; $('canvas').hidden=true; $('imageEmpty').hidden=false; $('imageEmpty').textContent='ZIP에서 사진을 읽는 중…'; $('imageTitle').textContent=fileName(source.entry); $('imagePath').textContent=fileName(source.zip)+' / '+source.entry; $('imageSize').textContent='';
+ const img=new Image(); const url='/api/image?zip='+encodeURIComponent(source.zip)+'&entry='+encodeURIComponent(source.entry);
+ try { await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(Error('사진을 읽을 수 없습니다. ZIP 암호와 파일 연결을 확인하세요.'));img.src=url;}); if(revision!==imageRevision) return false; loadedImage=img; canvas.width=img.naturalWidth; canvas.height=img.naturalHeight; $('imageSize').textContent=img.naturalWidth+' × '+img.naturalHeight+' px'; canvas.hidden=false; $('imageEmpty').hidden=true; $('zoom').value=100; applyZoom(); redraw(); return true; } catch(e) { if(revision===imageRevision) { $('imageEmpty').textContent=e.message; status(e.message,true); } return false; }
+}
+async function loadReference(ref) {
+ if(mode!=='reference') setMode('reference'); cancelDrawing(); regions=clone(ref.regions||[]); selectedRegion=regions.length?0:-1; $('confirmedReference').checked=false;const isDraft=ref.reference_origin==='assistant_visual_draft';if(humanReviewed(ref)&&ref.reviewer)$('reviewer').value=ref.reviewer;else if($('reviewer').value==='Codex visual review')$('reviewer').value='';$('referenceOrigin').textContent=humanReviewed(ref)?'사람이 확인한 기준 · '+(ref.reviewer||'확인자 기록 있음'):isDraft?'AI가 그린 초안 · 사람의 정답 기준 미확정':'정답 기준 없음 · 확인 전';renderRegions();const ready=await loadPhoto(ref.source);if(!ready)return;const revision=imageRevision;if(ref.json_zip&&ref.json_entry)await loadAnnotation(ref.json_zip,ref.json_entry);if(revision!==imageRevision)return;renderRegions();status(humanReviewed(ref)?'기존 기준을 불러왔습니다. 변경 저장 시 사진을 다시 확인해 주세요.':isDraft?'AI 초안을 불러왔습니다. 실제 사진과 영역을 확인하고 확인자 이름과 체크로 정답 기준을 확정하세요.':'정답 기준을 직접 그린 뒤 확인 체크를 하고 저장하세요.');
+}
+async function loadAnnotation(zip,entry) { const key=sourceKey(photo),revision=imageRevision; try {const annotation=await api('/api/annotation?zip='+encodeURIComponent(zip)+'&entry='+encodeURIComponent(entry));if(sourceKey(photo)!==key||revision!==imageRevision)return;shapes=annotation.shapes||[];originalShapes=clone(shapes);redraw();} catch(e) {if(sourceKey(photo)===key&&revision===imageRevision)status('어노테이션을 불러오지 못했습니다: '+e.message,true); } }
+function resultStatus(r) { return r.quality_status||r.status||r.classification||r.quality||r.semantic_status||''; }
+function basisDescription(basis,r,item) { if(item?.reference_origin==='assistant_visual_draft'||state.references.some(ref=>ref.id===r.reference_id&&ref.reference_origin==='assistant_visual_draft'&&!humanReviewed(ref)))return 'AI가 그린 기준 초안 · 사람의 정답 기준 미확정';return basis==='reviewed_image'?'사람이 확인한 기준과 같은 사진':basis==='provisional_reference_projection'?'다른 사진에 옮긴 임시 기준 · 가림 상태는 미확인':basis; }
+function renderResults() {
+ const filter=$('resultFilter').value; const results=state.results.filter(r=>filter==='all'||(filter==='issues'&&(r.issues||[]).length>0)||(filter==='no_rule_trigger'&&resultStatus(r)==='no_rule_trigger')||(filter==='correction'&&r.correction_file)); $('resultCount').textContent=results.length+'개 표시 / 전체 '+state.results.length+'개'; const list=$('resultList'); clear(list);
+ if(!results.length) {list.append(elem('p',state.results.length?'이 필터에 해당하는 결과가 없습니다.':'검사 결과가 없습니다. 기준 저장 후 검사를 실행하고 새로고침하세요.','empty'));return;}
+ for(const r of results.slice(0,1000)) { const button=elem('button',undefined,'item'); button.type='button'; button.append(elem('span',fileName(r.photo_entry||r.json_entry)||r.id,'title'),elem('span',issueNames[resultStatus(r)]||resultStatus(r)||'검수 대상','meta')); if((r.issues||[]).length) button.append(elem('span',(r.issues||[]).length+'개 문제 코드','tag')); if(r.correction_file) button.append(elem('span','수정본 있음','tag')); button.addEventListener('click',()=>loadResult(r)); list.append(button); }
+ if(results.length>1000) list.append(elem('p','앞 1,000개를 표시했습니다. 전체 목록은 quality.csv에서 확인하세요.','small muted'));
+}
+function normalizeRegions(r) { const candidates=r.projected_regions||r.regions||[]; return candidates.filter(x=>Array.isArray(x.projected_points||x.points)).map(x=>({...x,points:x.projected_points||x.points})); }
+function renderMetrics(r) {
+ clear($('metricsList'));const evidence=[...(r.metrics||[]),...(r.registration||[])],percent=v=>Number.isFinite(v)?(100*v).toFixed(1)+'%':'계산 불가';
+ $('rasterDiagnosticNotice').hidden=!evidence.some(item=>item.rendered_pixel_method||item.rendered_coverage!==undefined);
+ for(const item of evidence){
+  const box=elem('div',undefined,'metric');box.append(elem('strong',item.label||item.reference_id||item.region_id||item.id||'검사 근거'));
+  if(item.coverage_lower!==undefined){
+   box.append(elem('p','유효한 도형의 커버리지 '+percent(item.coverage_lower)+' · 최소 기준 '+percent(item.min_coverage)));
+   if(item.coverage_upper!==item.coverage_lower)box.append(elem('p','잘못된 도형을 고려한 최대 가능 범위 '+percent(item.coverage_upper),'muted'));
+   for(const [label,value]of Object.entries(item.conflict_coverage||{}))box.append(elem('p',label+' 충돌 '+percent(value)+' · 최대 기준 '+percent(item.max_conflict)));
+  }
+  if(item.rendered_coverage!==undefined){
+   const rasterBox=elem('div',undefined,'status');rasterBox.append(elem('p','픽셀 채움 진단 커버리지 '+percent(item.rendered_coverage)+' · 최소 기준 '+percent(item.min_coverage)));
+   for(const [label,value]of Object.entries(item.rendered_conflict_coverage||{}))rasterBox.append(elem('p','픽셀 채움 '+label+' 충돌 '+percent(value)+' · 최대 기준 '+percent(item.max_conflict)));
+   if(item.rendered_status==='abstain')rasterBox.append(elem('p','이 픽셀 진단은 불완전하여 판정 보류입니다.'));
+   rasterBox.append(elem('p','제출 좌표의 채움 비율이며 좌표 수정·정답 판정은 아닙니다.','small muted'));box.append(rasterBox);
+  }else if(item.rendered_pixel_method&&item.rendered_status==='abstain')box.append(elem('p','픽셀 채움 진단도 판정 보류입니다.','muted'));
+  if(item.basis)box.append(elem('p',basisDescription(item.basis,r,item),'muted'));
+  if(item.status==='abstain')box.append(elem('p','유효한 도형에 근거한 이 영역의 기하 검사는 판정 보류입니다.','muted'));
+  const detail=elem('details');detail.append(elem('summary','계산 근거 보기'),elem('pre',JSON.stringify(item,null,2)));box.append(detail);$('metricsList').append(box);
+ }
+ if(!evidence.length)$('metricsList').append(elem('p','영역 비교 또는 정합 근거가 기록되지 않았습니다.','small muted'));
+ if((r.duplicate_groups||[]).length){const detail=elem('details',undefined,'metric');detail.append(elem('summary','중복 도형 비교 근거'),elem('pre',JSON.stringify(r.duplicate_groups,null,2)));$('metricsList').append(detail);}
+}
+async function loadResult(r) {
+ if(mode!=='results') setMode('results'); result=r; regions=normalizeRegions(r); selectedRegion=-1;duplicateFocus=[];duplicateKeep=null; $('saveReview').disabled=false; $('reviewNote').value=r.review?.note||''; $('reviewDecision').value=r.review?.decision||'needs_review'; $('resultState').textContent=(issueNames[resultStatus(r)]||resultStatus(r)||'검수 대상')+' · 의미 판정: '+(issueNames[r.semantic_status]||r.semantic_status||'확인 정보 없음');
+ $('semanticNotice').textContent=state.references.some(ref=>ref.id===r.reference_id&&ref.reference_origin==='assistant_visual_draft'&&!humanReviewed(ref))?'AI가 그린 기준 초안을 사용한 후보 결과입니다. 사람의 정답 기준으로 확정되지 않았으므로 사진과 라벨을 직접 확인해야 합니다.':'벽 누락·라벨 충돌 판정은 확인된 기준과 정합 근거가 필요합니다. 기준이 없거나 정합이 불안정하면 추가 확인 대상으로 남습니다.';
+ clear($('issuesList')); for(const i of r.issues||[]) $('issuesList').append(elem('li',readable(i))); if(!(r.issues||[]).length) $('issuesList').append(elem('li','규칙에 걸리지 않았습니다. 사진과 라벨의 의미가 맞는지는 직접 확인하세요.'));for(const i of r.warnings||[]){const li=elem('li','확인 사항: '+readable(i));li.className='muted';$('issuesList').append(li);}
+ renderMetrics(r);
+ renderDuplicateGroups(r);renderCorrection(r);
+ if(r.photo_zip&&r.photo_entry) { if(await loadPhoto({zip:r.photo_zip,entry:r.photo_entry})) { const jsonZip=r.json_zip||state.json_zip; if(jsonZip&&r.json_entry) await loadAnnotation(jsonZip,r.json_entry); else status('연결된 JSON이 없어 사진만 표시합니다.'); } } else { ++imageRevision; photo=null; loadedImage=null; canvas.hidden=true; $('imageEmpty').hidden=false; $('imageEmpty').textContent='연결된 사진이 없습니다. 문제 코드와 ZIP 연결을 확인하세요.'; $('imageTitle').textContent=fileName(r.json_entry)||r.id; $('imagePath').textContent=''; }
+ redraw();
+}
+function renderCorrection(r) {
+ clear($('correctionInfo'));if(!r.correction_file)return;
+ const box=elem('div',undefined,'notice info');box.append(elem('p','별도 수정본이 있습니다. 사진과 겹쳐 확인한 뒤 사용하세요.'));box.append(elem('p','중복을 제거해도 남긴 도형의 좌표·라벨 오류는 별도 확인이 필요합니다.','small'));if((r.human_reviewed_removed_source_indices||[]).length)box.append(elem('p','사람 확인으로 제외한 원본 도형: '+r.human_reviewed_removed_source_indices.map(i=>'#'+i).join(', '),'small'));const toggle=elem('button','수정본 겹쳐보기');toggle.type='button';let corrected=false;
+ toggle.addEventListener('click',async()=>{if(!loadedImage||result?.id!==r.id)return;toggle.disabled=true;try{duplicateFocus=[];duplicateKeep=null;if(corrected){shapes=clone(originalShapes);corrected=false;toggle.textContent='수정본 겹쳐보기';status('원본 어노테이션을 표시합니다.');}else{const revision=imageRevision,data=await api('/api/correction?id='+encodeURIComponent(r.id));if(result?.id!==r.id||revision!==imageRevision)return;shapes=data.shapes||[];corrected=true;toggle.textContent='원본 라벨로 돌아가기';status('수정본 표시: 원본 '+originalShapes.length+'개 → 수정본 '+shapes.length+'개 도형. 남긴 도형과 빠진 도형을 사진에서 확인하세요.');}redraw();}catch(e){status('수정본을 표시하지 못했습니다: '+e.message,true);}finally{toggle.disabled=false;}});
+ box.append(toggle);const a=elem('a','수정 JSON 내려받기','download');a.href='/api/correction?id='+encodeURIComponent(r.id);a.setAttribute('download',fileName(r.json_entry)||'corrected_annotation.json');box.append(elem('br'),a);$('correctionInfo').append(box);
+}
+function renderDuplicateGroups(r) {
+ const groups=(r.duplicate_groups||[]).map(g=>({...g,indices:g.shape_indices||g.indices||[]})).filter(g=>g.indices.length>=2&&g.indices.every(Number.isInteger));duplicateUpdates=[];clear($('duplicateGroups'));$('duplicateSection').hidden=!groups.length;if($('duplicateReviewer').value==='Codex visual review')$('duplicateReviewer').value='';
+ for(const [groupNumber,group] of groups.entries()){
+  const box=elem('div',undefined,'region');const kindText=group.kind==='cross_label_overlap'?'같은 영역의 서로 다른 라벨':group.kind==='exact_literal_duplicate'?'내용이 완전히 동일한 도형':group.kind==='exact_semantic_duplicate'?'완전히 동일한 도형':'서로 거의 겹치는 도형';box.append(elem('strong','중복·충돌 묶음 '+(groupNumber+1)+' · '+kindText));
+  if(group.kind==='cross_label_overlap')box.append(elem('p','서로 다른 라벨 '+(group.labels||[]).join(' / ')+'이 거의 같은 영역을 표시했습니다. 사진에서 올바른 라벨과 도형을 사람이 확인한 경우에만 하나를 남깁니다. 자동으로 삭제하지 않습니다.','notice'));
+  if(group.coordinate_relation==='same_submitted_points_and_shape_type_invalid_topology')box.append(elem('p','제출 좌표는 같지만 폴리곤 유효성에 문제가 있습니다. 하나를 남겨도 좌표 오류는 해결되지 않습니다.','small muted'));
+  if(group.kind==='exact_literal_duplicate')box.append(elem('p','하나만 남겨도 남긴 도형의 좌표 오류가 고쳐지는 것은 아닙니다.','small muted'));
+  if((group.ranked_proposals||[]).some(p=>p.support_is_upper_bound_only))box.append(elem('p','일부 비교 점수는 잘못된 도형의 제출 좌표에서 계산한 최대 가능 범위입니다. 실제 영역이나 정답 라벨의 증거가 아닙니다.','notice'));
+  else if((group.ranked_proposals||[]).some(p=>p.ranking_is_not_label_correctness))box.append(elem('p','비교 점수와 추천 순서는 정답 라벨을 증명하지 않습니다. 사진과 기준 영역을 직접 확인하세요.','small muted'));
+  if(Number.isFinite(group.iou))box.append(elem('p','도형끼리 겹치는 비율 '+(group.iou*100).toFixed(1)+'%','small muted'));const choices=elem('div',undefined,'row');let keep=null,saving=false;const buttons=[];
+  const checkLabel=elem('label',undefined,'check'),check=elem('input');check.type='checkbox';checkLabel.append(check,elem('span','사진에서 같은 객체의 중복이며, 선택한 도형이 맞음을 확인했습니다.'));
+  const save=elem('button','선택한 도형만 남긴 수정 초안 저장','primary full');save.type='button';save.disabled=true;const localStatus=elem('p','남길 도형을 먼저 선택하세요.','small muted');
+  const update=()=>{save.disabled=!(result?.id===r.id&&keep!==null&&check.checked&&$('duplicateReviewer').value.trim()&&loadedImage&&originalShapes[keep]&&!saving);};
+  for(const [position,index]of group.indices.entries()){const label=group.labels?.[position]??(group.ranked_proposals||[]).find(p=>p.shape_index===index)?.label??'';const button=elem('button','도형 #'+index+(label?' ('+label+')':'')+' 남기기');button.type='button';button.addEventListener('click',()=>{if(result?.id!==r.id||!loadedImage||!originalShapes[index]){status('원본 사진과 어노테이션을 먼저 불러와야 합니다.',true);return;}keep=index;check.checked=false;duplicateFocus=group.indices.slice();duplicateKeep=index;shapes=clone(originalShapes);$('showAnnotations').checked=true;for(const [other,otherIndex]of buttons)other.classList.toggle('primary',otherIndex===index);localStatus.textContent='도형 #'+index+' · '+String(originalShapes[index].label||'빈 라벨')+'를 초록색으로 표시했습니다. 나머지는 빨간색 제거 후보입니다.';update();redraw();status('도형 #'+index+'를 남길 후보로 선택했습니다. 사진에서 좌표와 라벨이 맞는지 확인하세요.');});buttons.push([button,index]);choices.append(button);}
+  check.addEventListener('change',update);duplicateUpdates.push(update);
+  save.addEventListener('click',async()=>{update();if(save.disabled)return;saving=true;update();const request={result_id:r.id,keep_shape_index:keep,remove_shape_indices:group.indices.filter(i=>i!==keep),reviewer:$('duplicateReviewer').value.trim(),confirmed_same_object:true};try{const response=await api('/api/correct',request);r.correction_file=response.correction_file||r.correction_file;if(result?.id===r.id){check.checked=false;renderCorrection(r);localStatus.textContent='수정 초안을 저장했습니다. 수정본 겹쳐보기로 남긴 도형을 확인하세요.';status('사람의 중복 선택을 기록하고 별도 수정 초안을 저장했습니다. 원본은 보존됩니다.');}renderResults();}catch(e){localStatus.textContent=e.message;status(e.message,true);}finally{saving=false;update();}});
+  box.append(choices,localStatus,checkLabel,save);const evidence=elem('details');evidence.append(elem('summary','이 묶음의 비교 근거'),elem('pre',JSON.stringify(group,null,2)));box.append(evidence);$('duplicateGroups').append(box);
+ }
+}
+function polygonPoints(shape) { if(shape.shape_type==='rectangle'&&(shape.points||[]).length===2) {const [a,b]=shape.points;return [a,[b[0],a[1]],b,[a[0],b[1]]];} return shape.points||[]; }
+function path(points) { if(!points.length)return;ctx.beginPath();ctx.moveTo(points[0][0],points[0][1]);for(const p of points.slice(1))ctx.lineTo(p[0],p[1]);ctx.closePath(); }
+function drawPolygon(points,color,fill,text,dashed=false,weight=2) { if(!Array.isArray(points)||points.length<2||points.some(p=>!Array.isArray(p)||!Number.isFinite(p[0])||!Number.isFinite(p[1])))return; const unit=Math.max(canvas.width/850,1);ctx.save();ctx.strokeStyle=color;ctx.fillStyle=fill;ctx.lineWidth=weight*unit;ctx.setLineDash(dashed?[7*unit,5*unit]:[]);path(points);if(points.length>=3)ctx.fill();ctx.stroke();if(text){const [x,y]=points[0];ctx.font=(12*unit)+'px sans-serif';const w=ctx.measureText(text).width+10*unit;ctx.setLineDash([]);ctx.fillStyle=color;ctx.fillRect(Math.max(0,x),Math.max(0,y-20*unit),w,19*unit);ctx.fillStyle='#fff';ctx.fillText(text,Math.max(0,x)+5*unit,Math.max(15*unit,y-6*unit));}ctx.restore(); }
+function redraw() { if(!loadedImage)return;ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(loadedImage,0,0); if($('showAnnotations').checked) for(const shape of shapes) {const label=String(shape.label||'빈 라벨');const color=label.toLowerCase()==='wall'?'#e78a14':label.toLowerCase()==='ceiling'?'#397dd0':'#b45c76';drawPolygon(polygonPoints(shape),color,color+'18',label);} if($('showRegions').checked) for(let i=0;i<regions.length;i++){const region=regions[i];drawPolygon(region.points,'#087a72',i===selectedRegion?'#087a7225':'#087a7212',String(region.label||'기준')+' 기준',mode==='results');for(const exclusion of region.exclusions||[])drawPolygon(Array.isArray(exclusion)?exclusion:exclusion.points,'#7a59ac','#7a59ac28','제외');}if(mode==='results'&&duplicateFocus.length){for(const index of duplicateFocus)if(index!==duplicateKeep&&originalShapes[index])drawPolygon(polygonPoints(originalShapes[index]),'#b94335','#b9433518','제거 후보 #'+index+' · '+String(originalShapes[index].label||'빈 라벨'),true,4);if(duplicateKeep!==null&&originalShapes[duplicateKeep])drawPolygon(polygonPoints(originalShapes[duplicateKeep]),'#008455','#00845515','남길 도형 #'+duplicateKeep+' · '+String(originalShapes[duplicateKeep].label||'빈 라벨'),false,5);} if(draft.length){drawPolygon(draft,'#b94335','#b943351a','',true);const unit=Math.max(canvas.width/850,1);ctx.fillStyle='#b94335';for(const p of draft){ctx.beginPath();ctx.arc(p[0],p[1],3*unit,0,2*Math.PI);ctx.fill();}} }
+function applyZoom() { canvas.style.width=$('zoom').value+'%'; $('zoomValue').textContent=$('zoom').value+'%'; }
+function updateSave() { $('saveReference').disabled=!(photo&&loadedImage&&regions.length&&$('confirmedReference').checked&&$('reviewer').value.trim()&&!drawMode); }
+function renderRegions() {
+ const list=$('regionsList');clear(list);$('noRegions').hidden=regions.length>0;for(let i=0;i<regions.length;i++){const region=regions[i];const box=elem('div',undefined,'region'+(i===selectedRegion?' active':''));const head=elem('div',undefined,'row');const select=elem('button',String(region.label||'기준')+' · '+(region.points||[]).length+'점','grow');select.type='button';select.addEventListener('click',()=>{selectedRegion=i;renderRegions();redraw();});const remove=elem('button','삭제','danger');remove.type='button';remove.addEventListener('click',()=>{regions.splice(i,1);selectedRegion=regions.length?Math.min(i,regions.length-1):-1;$('confirmedReference').checked=false;renderRegions();redraw();});head.append(select,remove);box.append(head);const fields=elem('div',undefined,'fields');
+  function field(title,key,value,type,wide=false){const label=elem('label',title,wide?'wide':'');const input=elem('input');input.type=type||'text';input.value=value;if(type==='number'){input.min='0';input.max='1';input.step='.05';}input.addEventListener('change',()=>{region[key]=key==='conflict_labels'?input.value.split(',').map(x=>x.trim()).filter(Boolean):Number(input.value);$('confirmedReference').checked=false;updateSave();});label.append(input);fields.append(label);}
+  field('최소 커버리지 (0~1)','min_coverage',region.min_coverage??.65,'number');field('충돌 최대 비율 (0~1)','max_conflict',region.max_conflict??.15,'number');field('충돌 라벨 (쉼표로 구분)','conflict_labels',(region.conflict_labels||[region.label==='wall'?'ceiling':'wall']).join(', '),'text',true);box.append(fields);const count=(region.exclusions||[]).length;box.append(elem('p','가림 제외 '+count+'개','small muted'));if(count){const removeEx=elem('button','이 영역의 가림 제외 초기화');removeEx.type='button';removeEx.addEventListener('click',()=>{region.exclusions=[];$('confirmedReference').checked=false;renderRegions();redraw();});box.append(removeEx);}list.append(box);
+ }$('startExclusion').disabled=selectedRegion<0||!loadedImage;updateSave();updateDrawingTools();
+}
+function startDrawing(kind) { if(!loadedImage) {status('먼저 기준 사진을 선택하세요.',true);return;}if(kind==='exclusion'&&selectedRegion<0)return;drawMode=kind;draft=[];canvas.classList.remove('browse');$('confirmedReference').checked=false;updateDrawingTools();redraw(); }
+function cancelDrawing() { draft=[];drawMode=null;canvas.classList.add('browse');updateDrawingTools();redraw(); }
+function updateDrawingTools() { $('undoPoint').disabled=!draft.length;$('finishPolygon').disabled=draft.length<3;$('cancelPolygon').disabled=!drawMode;$('startRegion').disabled=!!drawMode||!loadedImage;$('startExclusion').disabled=!!drawMode||selectedRegion<0||!loadedImage;$('drawingStatus').textContent=drawMode?(drawMode==='exclusion'?'선택된 기준 영역에서 제외할 가림 부분':'기준으로 사용할 벽·천장 부분')+' · '+draft.length+'점 · 3점 이상 찍고 도형 확정':loadedImage?'영역 그리기를 누르고 꼭짓점을 순서대로 클릭하세요.':'사진을 선택한 뒤 기준 영역을 그립니다.';updateSave(); }
+function finishDrawing() { if(draft.length<3)return;const points=clone(draft);if(drawMode==='exclusion'){const region=regions[selectedRegion];region.exclusions=region.exclusions||[];region.exclusions.push(points);}else{const label=$('regionLabel').value;regions.push({id:'roi_'+Date.now().toString(36)+'_'+regions.length,label,points,exclusions:[],min_coverage:.65,conflict_labels:[label==='wall'?'ceiling':'wall'],max_conflict:.15});selectedRegion=regions.length-1;}cancelDrawing();renderRegions();redraw(); }
+async function saveReference() {
+ if($('saveReference').disabled)return;const payload={source:{...photo},regions:clone(regions),reviewed:true,reviewer:$('reviewer').value.trim()};$('saveReference').disabled=true;try{await api('/api/reference',payload);await reload();$('confirmedReference').checked=false;status('사람이 확인한 기준을 저장했습니다. 다른 사진의 정합과 누락·충돌 검사를 실행하세요.');}catch(e){status(e.message,true);}finally{updateSave();}
+}
+async function saveReview() { if(!result)return;$('saveReview').disabled=true;try{await api('/api/review',{result_id:result.id,decision:$('reviewDecision').value,note:$('reviewNote').value.trim()});status('검수 기록을 저장했습니다.');}catch(e){status(e.message,true);}finally{$('saveReview').disabled=false;} }
+$('tabReference').addEventListener('click',()=>setMode('reference'));$('tabResults').addEventListener('click',()=>setMode('results'));$('searchPhotos').addEventListener('click',searchPhotos);$('photoQuery').addEventListener('keydown',e=>{if(e.key==='Enter')searchPhotos();});$('reloadState').addEventListener('click',reload);$('resultFilter').addEventListener('change',renderResults);$('showAnnotations').addEventListener('change',redraw);$('showRegions').addEventListener('change',redraw);$('zoom').addEventListener('input',applyZoom);$('startRegion').addEventListener('click',()=>startDrawing('region'));$('startExclusion').addEventListener('click',()=>startDrawing('exclusion'));$('undoPoint').addEventListener('click',()=>{draft.pop();updateDrawingTools();redraw();});$('finishPolygon').addEventListener('click',finishDrawing);$('cancelPolygon').addEventListener('click',cancelDrawing);$('confirmedReference').addEventListener('change',updateSave);$('reviewer').addEventListener('input',updateSave);$('saveReference').addEventListener('click',saveReference);$('saveReview').addEventListener('click',saveReview);
+$('duplicateReviewer').addEventListener('input',()=>duplicateUpdates.forEach(update=>update()));
+canvas.addEventListener('click',event=>{if(mode!=='reference'||!drawMode||!loadedImage)return;const rect=canvas.getBoundingClientRect();const x=(event.clientX-rect.left)*canvas.width/rect.width,y=(event.clientY-rect.top)*canvas.height/rect.height;if(x>=0&&x<=canvas.width&&y>=0&&y<=canvas.height){draft.push([Math.round(x*100)/100,Math.round(y*100)/100]);updateDrawingTools();redraw();}});
+document.addEventListener('keydown',event=>{if(['INPUT','TEXTAREA','SELECT'].includes(document.activeElement?.tagName))return;if(event.key==='Escape')cancelDrawing();if(event.key==='Enter'&&drawMode){event.preventDefault();finishDrawing();}if(event.key==='Backspace'&&drawMode){event.preventDefault();draft.pop();updateDrawingTools();redraw();}});
+reload();
+</script>
+</body>
+</html>
+
+
