@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>할 일 · review</title>
+<style>
+:root{--bg:#15171a;--fg:#e8e8e8;--muted:#9aa0a6;--line:#2c3036;--card:#1d2024;--acc:#3b82f6;--ok:#16a34a;--warn:#d97706}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,"Malgun Gothic",sans-serif}
+header{display:flex;gap:12px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:2}
+header a{color:var(--acc)}main{max-width:1200px;margin:0 auto;padding:12px 16px 60px}
+section{background:var(--card);border:1px solid var(--line);border-radius:8px;margin:12px 0;padding:10px 14px}
+h2{font-size:16px;margin:4px 0 6px}.n{display:inline-block;min-width:22px;text-align:center;border-radius:10px;background:var(--acc);margin-right:6px}
+.info .n{background:#555}.zero{opacity:.45}.how{color:var(--muted);margin:2px 0 8px}
+table{border-collapse:collapse;width:100%;font-size:13px}td,th{border-bottom:1px solid var(--line);padding:4px 6px;text-align:left;vertical-align:top}
+button{background:#2a2f36;color:var(--fg);border:1px solid #3a4048;border-radius:5px;padding:4px 10px;cursor:pointer}
+button.approve{background:var(--ok);border-color:var(--ok)}button:disabled{opacity:.5}
+a{color:#7fb0ff}.grid{display:flex;flex-wrap:wrap;gap:8px}.th{width:240px}.th canvas{width:240px;height:135px;background:#000;border-radius:4px}
+.small{font-size:12px;color:var(--muted)}
+.strip{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 10px}.tb{width:200px;font-size:11px;color:var(--muted)}
+.tb img{width:200px;height:112px;object-fit:cover;border-radius:4px;display:block;background:#000;cursor:zoom-in;border:2px solid transparent}
+.tb.before img{border-color:#16a34a}.tb.after img{border-color:#d97706}.tb.ref img{border-color:#3b82f6}
+#zoom{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;align-items:center;justify-content:center;z-index:9;cursor:zoom-out}#zoom img{max-width:94vw;max-height:90vh}#msg{position:fixed;bottom:12px;left:50%;transform:translateX(-50%);background:#222;padding:8px 14px;border-radius:6px;display:none}
+</style></head><body>
+<header><b>할 일 (To-do)</b><span id="run" class="small"></span><span style="flex:1"></span>
+<label>검수자 <input id="reviewer" size="12" placeholder="이름 (필수)"></label><a href="/">편집 화면 →</a><button onclick="load()">새로고침</button></header>
+<main><p id="order" class="small"></p><div id="body">불러오는 중…</div></main><div id="msg"></div><div id="zoom" onclick="this.style.display='none'"><img></div>
+<script>
+const $=s=>document.querySelector(s);
+function esc(v){return String(v??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+function msg(t,bad){const m=$("#msg");m.textContent=t;m.style.background=bad?"#8a1c16":"#222";m.style.display="block";clearTimeout(m._t);m._t=setTimeout(()=>m.style.display="none",bad?7000:3000)}
+async function api(p,b){const r=await fetch(p,b?{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(b)}:{});const j=await r.json();if(!r.ok)throw new Error(j.error||r.status);return j}
+function who(){const v=$("#reviewer").value.trim();if(!v){msg("검수자 이름을 먼저 입력하세요",true);throw new Error("no reviewer")}try{localStorage.setItem("reviewer",v)}catch(e){}return v}
+try{$("#reviewer").value=localStorage.getItem("reviewer")||""}catch(e){}
+const open=id=>`<a href="/#open=${encodeURIComponent(id)}" target="_blank">열기</a>`;
+// thumbnail: click = enlarge (full photo), link = open in the editor
+function tb(id,label,cls){return `<div class="tb ${cls||""}"><img loading="lazy" src="/api/thumb/${encodeURIComponent(id)}" onclick="zoom('${esc(id)}')">${esc(label||"")} · ${open(id)}</div>`}
+function zoom(id){const z=$("#zoom");z.querySelector("img").src="/api/image/"+encodeURIComponent(id)+"?max=1600";z.style.display="flex"}
+const hm=t=>String(t||"").replace("T"," ").slice(5,16);
+let T=null;
+async function load(){T=await api("/api/todo");$("#run").textContent=T.run_id+` · 할 일 ${T.total_actions}건`;$("#order").textContent=T.order_note;
+  let h="",n=0;for(const s of T.sections){n++;h+=`<section class="${s.level==="info"?"info":""} ${s.count?"":"zero"}" id="s_${s.id}"><h2><span class="n">${s.count}</span>${n}. ${esc(s.title)}</h2><div class="how">${esc(s.how)}</div>${s.count?render(s):""}</section>`}
+  $("#body").innerHTML=h;drawRebase()}
+function render(s){const it=s.items;
+  if(s.id==="view_proposals")return it.map((p,i)=>{
+     const strip=(arr,title)=>arr&&arr.length?`<div class="small">${title} — <span style="color:#16a34a">초록 = ${esc(p.view_id)}에 남는 사진</span>, <span style="color:#d97706">주황 = 다음 구도로 넘어가는 사진</span></div><div class="strip">${arr.map(x=>tb(x.image_id,hm(x.time),x.side)).join("")}</div>`:"";
+     return `<div><b>${esc(p.view_id)}</b> <span class="small">${esc(p.kind)}</span>
+     <div class="small">현재: ${hm(p.current.start_time)} ~ ${hm(p.current.end_time)} → 제안: ${hm(p.proposed.start_time||p.current.start_time)} ~ ${hm(p.proposed.end_time||p.current.end_time)}${p.photos?` · 사진 ${p.photos}장`:""}${p.proposed.retired?" · 구도 폐기 제안":""}</div>
+     ${strip(p.photos_around_proposed_end,"제안한 끝 시각 앞뒤")}${strip(p.photos_around_proposed_start,"제안한 시작 시각 앞뒤")}
+     <div class="small">초록 사진들과 주황 사진들의 카메라 화면이 서로 다르면(카메라가 옮겨짐) 제안이 맞습니다.</div>
+     <button class="approve" onclick="acceptView(${i})">수락+승인</button></div>`}).join("<hr>");
+  if(s.id==="views_unapproved")return it.map(x=>`<div><b>${esc(x.view_id)}</b> <span class="small">${hm(x.start_time)} ~ ${hm(x.end_time)} · 사진 ${x.photos}장</span>
+     <div class="strip">${x.reference_image_id?tb(x.reference_image_id,"기준 사진","ref"):""}${(x.photos_in_view||[]).map(p=>tb(p.image_id,hm(p.time))).join("")}</div>
+     <div class="small">파란 테두리 = 기준 사진. 기간 안 사진들이 모두 같은 카메라 화면이면 '열기' → Approve view.</div></div>`).join("<hr>");
+  if(s.id==="roi_missing"||s.id==="roi_unapproved"){const byView={};for(const x of it)(byView[x.view_id]=byView[x.view_id]||[]).push(x);
+     return Object.entries(byView).map(([v,xs])=>`<div><b>${esc(v)}</b> — ${s.id==="roi_missing"?"그릴 대상":"확인·승인할 ROI"}: ${xs.map(x=>esc(x.target_id)+(x.status?` (${esc(x.status)})`:"")+(s.id==="roi_missing"?` <button class="small" title="이 구도에서는 이 벽이 안 보임 → ROI 요청에서 뺌" onclick="roiSkip('${esc(x.target_id)}','${esc(v)}')">안 보임</button>`:"")).join(", ")}
+     <div class="strip">${xs[0].reference_image_id?tb(xs[0].reference_image_id,"기준 사진 (여기에 그림)","ref"):""}</div></div>`).join("<hr>")}
+  if(["views_unapproved","roi_missing","roi_unapproved"].includes(s.id))return `<table>${it.map(x=>`<tr><td>${esc(x.roi||x.view_id)}</td><td class="small">${esc(Object.entries(x).filter(([k,v])=>!["roi","view_id","reference_image_id"].includes(k)).map(([k,v])=>k+"="+(Array.isArray(v)?v.join("/"):v)).join(" · "))}</td><td>${x.reference_image_id?open(x.reference_image_id)+" (기준 사진)":""}</td></tr>`).join("")}</table>`;
+  if(s.id==="drift_redraw")return `<table>${it.map(x=>`<tr><td>${esc(x.view_id)}</td><td>${esc(x.from_day)} ~ ${esc(x.to_day)}</td><td>밀림 ${(x.median_shift*100).toFixed(1)}%${x.likely_camera_move?" · 구도 변경 가능성 높음":""}</td><td>${tb(x.example_image_id,"예시")}</td></tr>`).join("")}</table>`;
+  if(s.id==="roi_changed_relabel")return `<div id="rebase"></div>`;
+  if(s.id==="drafts_to_review")return `<table>${it.map(x=>`<tr><td>${esc(x.kind)}</td><td>${x.drafts}건</td><td><a href="/#filter=samples&status=anydraft&grid=1" target="_blank">Grid로 검수</a></td></tr>`).join("")}</table>`;
+  if(s.id==="label_consistency")return it.slice(0,200).map(x=>`<div><b>${esc(x.target_id)}</b> <span class="small">${hm(x.time)} · ${esc(x.reason)}</span>
+     <div class="strip">${x.compare_with?tb(x.compare_with,"비교: 이전 라벨","before"):""}${tb(x.image_id,`확인할 사진 · 설치 ${Math.round(x.installed*100)}%`,"after")}</div>
+     ${x.compare_with?`<button class="approve" onclick="replaceLabel('${esc(x.image_id)}|${esc(x.target_id)}|${esc(x.activity_id)}','${esc(x.compare_with)}')">초록 사진과 같은 상태로 교체+승인</button>`:""}
+     <span class="small">지금 라벨이 맞으면 그대로 두면 됩니다. 둘 다 아니면 '열기'에서 직접 고치세요.</span></div>`).join("<hr>");
+  if(s.id==="needs_drawing")return `<div class="strip">${it.slice(0,200).map(x=>tb(x.image_id,`${x.target_id} · ${hm(x.time)}`)).join("")}</div>`;
+  if(s.id==="severe_shakes")return `<div class="small">${it.map(x=>`${esc(x.view_id)} ${esc(x.day)} 흔들림 ${(x.spread*100).toFixed(1)}%`).join(" · ")}</div>`;
+  if(s.id==="notes")return `<ul>${it.map(x=>`<li>${esc(typeof x==="string"?x:JSON.stringify(x))}</li>`).join("")}</ul>`;
+  return `<table>${it.slice(0,200).map(x=>`<tr><td class="small">${esc(Object.entries(x).map(([k,v])=>k+"="+(typeof v==="object"?JSON.stringify(v):v)).join(" · "))}</td></tr>`).join("")}</table>`}
+async function acceptView(i){const p=T.sections.find(s=>s.id==="view_proposals").items[i];const w=who();
+  if(!confirm(`${p.view_id}: 제안을 수락하고 승인합니다 (${w}).\n${JSON.stringify(p.proposed)}`))return;
+  try{await api("/api/accept_view_proposal",{author:w,view_id:p.view_id,proposed:p.proposed,candidate_id:p.candidate_id});msg("수락+승인 완료");await load()}catch(e){if(e.message!=="no reviewer")msg(e.message,true)}}
+async function roiSkip(t,v){const w=who();try{await api("/api/roi_skip",{author:w,target_id:t,view_id:v,visible:false});msg(`${t}: ${v}에서 안 보임으로 표시`);await load()}catch(e){if(e.message!=="no reviewer")msg(e.message,true)}}
+async function replaceLabel(key,from){const w=who();
+  if(!confirm(`${key.split("|")[1]}: 초록 사진(${from.slice(5,18)})의 설치 영역을 이 사진에 복사하고 '${w}' 이름으로 승인합니다.\n가림 표시는 이 사진 것을 유지합니다.`))return;
+  try{await api("/api/replace_label",{author:w,key,from_image_id:from});msg("교체+승인 완료");await load()}catch(e){if(e.message!=="no reviewer")msg(e.message,true)}}
+function drawRebase(){const el=$("#rebase");if(!el)return;const groups=T.rebase||{};let h="";
+  for(const [rk,list] of Object.entries(groups)){h+=`<h3 style="font-size:14px">${esc(rk)} — ${list.length}건 (ROI v${list[0].drawn_on_roi_version}→v${list[0].current_roi_version})
+     <button class="approve" onclick="rebase('${esc(rk)}')">선택한 것 새 ROI로 옮겨 다시 승인</button></h3><div class="grid">${list.map(c=>`<div class="th"><canvas width="320" height="180" data-img="${esc(c.image_id)}" data-roi="${esc(rk)}"></canvas>
+     <label class="small"><input type="checkbox" class="rb" data-roi="${esc(rk)}" value="${esc(c.key)}" checked> ${esc(c.image_id.slice(5,20))} ${c.was_approved?"(승인됐던 라벨)":"(초안)"}</label> ${open(c.image_id)}</div>`).join("")}</div>`}
+  el.innerHTML=h||"없음";
+  el.querySelectorAll("canvas").forEach(cv=>{const img=new Image();img.onload=()=>{const g=cv.getContext("2d");g.drawImage(img,0,0,320,180);const r=T.rois[cv.dataset.roi];if(!r)return;
+    const sx=320/r.image_size[0],sy=180/r.image_size[1];const poly=(pts,col)=>{g.beginPath();pts.forEach((p,i)=>i?g.lineTo(p[0]*sx,p[1]*sy):g.moveTo(p[0]*sx,p[1]*sy));g.closePath();g.strokeStyle=col;g.lineWidth=2;g.stroke()};
+    r.polygons.forEach(p=>poly(p.exterior,"#ffd400"));(r.exclusions||[]).forEach(e=>poly(e.points,"#ff3030"))};img.src="/api/thumb/"+cv.dataset.img})}
+async function rebase(rk){const w=who();const keys=[...document.querySelectorAll(`.rb[data-roi="${CSS.escape(rk)}"]`)].filter(x=>x.checked).map(x=>x.value);
+  if(!keys.length){msg("선택된 라벨이 없습니다",true);return}
+  if(!confirm(`${keys.length}건: 라벨 영역은 그대로, 새 ROI(노란 선) 기준으로 옮깁니다.\n승인됐던 라벨은 '${w}' 이름으로 다시 승인됩니다.\n경계 근처가 달라진 사진은 먼저 열어서 고치세요.`))return;
+  msg("작업 중…");try{const r=await api("/api/rebase_labels",{author:w,keys,approve:true});msg(`${r.rebased}건 처리, ${r.skipped.length}건 건너뜀`);await load()}catch(e){if(e.message!=="no reviewer")msg(e.message,true)}}
+load().catch(e=>{$("#body").textContent="오류: "+e.message});
+</script></body></html>
