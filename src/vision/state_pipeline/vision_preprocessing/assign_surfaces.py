@@ -147,7 +147,7 @@ def open_observation_cache(ctx: RunContext) -> ItemCache:
 
 
 def build_observations(ctx: RunContext, images: list[dict] | None = None, limit: int = 0,
-                       cache: ItemCache | None = None, quiet: bool = False) -> dict:
+                       cache: ItemCache | None = None, quiet: bool = False, all_images: list[dict] | None = None) -> dict:
     """Compute observation drafts. Pass ``cache`` (open_observation_cache) to reuse one in-memory cache
     across many small calls (review server); otherwise the cache file is opened, updated and compacted."""
     store = ctx.store()
@@ -161,7 +161,8 @@ def build_observations(ctx: RunContext, images: list[dict] | None = None, limit:
     images = [im for im in images if im.get("duplicate_of") is None]
     if limit:
         images = images[:limit]
-    by_id = {im["image_id"]: im for im in load_images(ctx, include_held=True)}
+    # all_images: the caller's already loaded ingest list (review server) - avoids re-reading images.jsonl per call
+    by_id = {im["image_id"]: im for im in (all_images if all_images is not None else load_images(ctx, include_held=True))}
     views = store_views(store)
     targets = [r for r in store.latest("target") if r["payload"].get("identity_status") != "retired"]
     rois = {r["key"]: r for r in store.latest("roi")}

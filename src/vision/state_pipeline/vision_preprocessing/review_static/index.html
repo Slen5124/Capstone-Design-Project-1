@@ -342,8 +342,8 @@ function renderRight(){const R=$("#right");if(!S.item){R.innerHTML='<p class="mu
      <button class="${S.tool==="edit"?"on":""}" onclick="setTool(S.tool==='edit'?null:'edit')">Edit vertices</button>
      <button onclick="S.draftROI={polygons:[],exclusions:[]};S.dirty=true;A.render();renderRight()">Clear</button></div>
      ${S.tool==="edit"?`<div class="row small">selected: ${esc(S.sel?S.sel.kind+" #"+(S.sel.idx+1):"none")} <button onclick="deleteSelected()">Delete selected polygon</button><button onclick="revertDrafts()">Revert unsaved</button></div>`:""}
-     <div class="small">draft: ${S.draftROI.polygons.length} polygon(s), ${S.draftROI.exclusions.length} exclusion(s)</div>
-     <div class="row small">copy ALL targets' ROIs from <select id="roiFrom">${S.meta.views.filter(v=>v.key!==(vr&&vr.key)).map(v=>`<option>${esc(v.key)}</option>`).join("")}</select>
+     <div class="small">draft for <b>${esc(S.target)}</b>: ${S.draftROI.polygons.length} polygon(s), ${S.draftROI.exclusions.length} exclusion(s)${S.draftROI.polygons.length>1?' <span class="err">— 폴리곤이 2개 이상입니다. 다른 벽 것이 섞이지 않았는지 확인하세요</span>':""}</div>
+     <div class="row small">copy ALL targets' ROIs from <select id="roiFrom">${roiFromOptions(vr)}</select>
        to this view <button onclick="copyRois()">Copy as drafts</button></div>
      <div class="row"><button class="primary" onclick="saveROI()">Save ROI draft</button>${t.roi?`<button class="approve" onclick="approve('roi','${esc(t.roi.key)}',${t.roi.version})">Approve ROI v${t.roi.version}</button>`:""}</div>`
      :`<div class="small muted">ROI is edited on the reference image of the view.</div>`}</fieldset>`;
@@ -374,33 +374,50 @@ function renderRight(){const R=$("#right");if(!S.item){R.innerHTML='<p class="mu
   }
   h+=`<p class="small muted">${esc(S.meta.ratio_semantics)}</p>`;
   R.innerHTML=h;
-  const ts=$("#tsel");if(ts)ts.onchange=()=>{if(S.dirty&&!confirm("Discard unsaved drafts?"))return renderRight();S.target=ts.value;S.dirty=false;resetDrafts();renderRight();renderList()};
+  const ts=$("#tsel");if(ts)ts.onchange=()=>{if(S.savingROI){msg("저장이 끝난 뒤에 대상을 바꿔 주세요 / wait for the save to finish",true);return renderRight()}
+    if(S.dirty&&!confirm("Discard unsaved drafts?"))return renderRight();S.target=ts.value;S.dirty=false;S.pts=[];S.sel=null;resetDrafts();renderRight();renderList()};
   const as=$("#asel");if(as)as.onchange=()=>{if(S.dirty&&!confirm("Discard unsaved drafts?"))return renderRight();S.activity=as.value;S.dirty=false;resetDrafts();renderRight();renderList()};
   const fr=$("#fillroi");if(fr)fr.onchange=()=>{S.draftLabel.fill_roi_state=fr.value||null;S.dirty=true;A.render();renderRight()};
   const wu=$("#wholeundet");if(wu)wu.onchange=()=>{S.draftLabel.whole_target_undeterminable=wu.value||null;S.dirty=true;renderRight()};
   const ln=$("#lnote");if(ln)ln.oninput=()=>{S.draftLabel.note=ln.value;S.dirty=true};
 }
-async function refresh(keepDrafts){const keepR=S.draftROI,keepL=S.draftLabel;await loadMeta();S.item=await api("/api/item/"+S.cur);
-  if(keepDrafts){S.draftROI=keepR;S.draftLabel=keepL}else resetDrafts();await loadList();renderRight();A.render()}
+async function refresh(keepDrafts){const keepR=S.draftROI,keepL=S.draftLabel,tgt=S.target,cur=S.cur;await loadMeta();
+  const item=await api("/api/item/"+cur);
+  if(S.cur!==cur){return}                               // another photo was opened meanwhile: leave it alone
+  S.item=item;
+  // the reviewer switched target (or started drawing) while this was loading: never put the old drafts back
+  if(S.target===tgt){if(keepDrafts){S.draftROI=keepR;S.draftLabel=keepL}else if(!S.dirty)resetDrafts()}
+  await loadList();renderRight();A.render()}
 async function guard(fn,ok){try{const r=await fn();if(ok)msg(ok+(r&&r.invalidated&&r.invalidated.length?` — ${r.invalidated.length} approval(s) invalidated`:""));return r}catch(e){if(e.message!=="no reviewer")msg(e.message,true);throw e}}
 async function approve(kind,key,version,decision){const who=reviewer();if(S.dirty&&!confirm("You have unsaved drafts. Approve the SAVED version anyway?"))return;
-  await guard(()=>api("/api/decide",{kind,key,version,author:who,decision:decision||"approved"}),`${decision||"approved"} ${kind} v${version}`);await refresh(true)}
+  try{await guard(()=>api("/api/decide",{kind,key,version,author:who,decision:decision||"approved"}),`${decision||"approved"} ${kind} v${version}`)}
+  catch(e){if(/is not current/.test(e.message)){await refresh(true);msg(`${key}: 화면보다 새 버전이 저장돼 있어 화면을 갱신했습니다. 확인 후 다시 승인하세요 / newer version saved - review it, then approve again`,true)}return}
+  await refresh(true)}
 function closeOpenPolygon(tools){if(!S.tool||!tools.includes(S.tool)||!S.pts.length)return true;
   if(uniq(S.pts).length<3){msg("The polygon being drawn is not closed yet (needs 3+ points) / 그리던 폴리곤이 아직 닫히지 않았습니다",true);return false}
   finishPoly();return true}
 async function roiNotVisible(t,v){const who=reviewer();if(!confirm(`${t}: ${v} 구도에서 안 보임으로 표시할까요? (ROI 요청에서 빠짐)`))return;
   await guard(()=>api("/api/roi_skip",{author:who,target_id:t,view_id:v,visible:false}),`${t} not visible in ${v}`);await refresh()}
-async function copyRois(){const who=reviewer();const from=$("#roiFrom").value,to=S.item.view_record.key;
+function roiFromOptions(vr){ // default = the view just before this one in time (the usual source after a small camera move)
+  const vs=S.meta.views.filter(v=>v.key!==(vr&&vr.key)&&v.payload&&!v.payload.retired);
+  const t0=vr&&vr.payload?vr.payload.start_time:"";const before=vs.filter(v=>(v.payload.start_time||"")<t0).sort((a,b)=>(a.payload.start_time||"")<(b.payload.start_time||"")?1:-1);
+  const def=before.length?before[0].key:(vs[0]&&vs[0].key);
+  return vs.sort((a,b)=>(a.payload.start_time||"")<(b.payload.start_time||"")?-1:1).map(v=>`<option ${v.key===def?"selected":""}>${esc(v.key)} (${esc((v.payload.start_time||"").slice(5,16).replace("T"," "))})</option>`).join("")}
+async function copyRois(){const who=reviewer();const from=$("#roiFrom").value.split(" ")[0],to=S.item.view_record.key;
   if(!confirm(`Copy every target ROI of ${from} into ${to} as unapproved drafts (same pixel positions)?\nThen adjust each with Edit vertices and approve.`))return;
   const r=await guard(()=>api("/api/roi_copy",{author:who,from_view:from,to_view:to}),"ROIs copied");
   if(r)msg(`copied: ${r.copied.join(", ")||"none"}${r.skipped.length?" · skipped: "+r.skipped.map(x=>x.target+" ("+x.reason+")").join(", "):""} — photos of ${to} refresh in background`);
   watchBg();await refresh()}
-let bgTimer=null;function watchBg(){if(bgTimer)return;bgTimer=setInterval(async()=>{await loadMeta();await loadList();
+let bgTimer=null,bgTick=0;function watchBg(){if(bgTimer)return;bgTimer=setInterval(async()=>{await loadMeta();if(++bgTick%4===0)await loadList();
+  if(bgTick%2===0&&S.cur&&!S.dirty){S.item=await api("/api/item/"+S.cur);renderRight();A.render()}
   const b=S.meta.background_refresh||{};$("#runinfo").textContent=$("#runinfo").textContent.replace(/ · refreshing.*$/,"")+(b.running?` · refreshing ROIs ${b.done||0}/${b.images}…`:"");
-  if(!b.running){clearInterval(bgTimer);bgTimer=null;if(S.cur){S.item=await api("/api/item/"+S.cur);renderRight();A.render()}}},4000)}
-async function saveROI(){const who=reviewer();if(!closeOpenPolygon(["roi","excl"]))return;
+  if(!b.running){clearInterval(bgTimer);bgTimer=null;await loadList();if(S.cur){S.item=await api("/api/item/"+S.cur);renderRight();A.render()}}},4000)}
+async function saveROI(){if(S.savingROI){msg("저장 중입니다… / saving, please wait");return}const who=reviewer();if(!closeOpenPolygon(["roi","excl"]))return;
   if(!S.draftROI.polygons.length){msg("No closed ROI polygon. Click points, then press Enter (or double-click) to close it / ROI 폴리곤을 Enter로 닫아 주세요",true);return}
-  await guard(()=>api("/api/roi",{author:who,image_id:S.cur,target_id:S.target,view_id:S.item.view_record.key,polygons:S.draftROI.polygons,exclusions:S.draftROI.exclusions}),"ROI draft saved — all photos of this view are being updated");S.dirty=false;watchBg();await refresh()}
+  S.savingROI=true;const tgt=S.target;msg(`${tgt} ROI 저장 중… / saving ROI…`);
+  try{const r=await guard(()=>api("/api/roi",{author:who,image_id:S.cur,target_id:tgt,view_id:S.item.view_record.key,polygons:S.draftROI.polygons,exclusions:S.draftROI.exclusions}),`${tgt} ROI draft saved — photos of this view are updated in the background`);
+    if(r&&r.changed===false)msg(`${tgt} ROI 변경 없음 (v${r.version} 그대로) / unchanged`);if(S.target===tgt)S.dirty=false;watchBg();await refresh()}
+  finally{S.savingROI=false}}
 async function saveLabel(){const who=reviewer();if(!closeOpenPolygon(["installed","not_installed","undet","occl"]))return;const L=S.draftLabel;
   await guard(()=>api("/api/label",{author:who,image_id:S.cur,target_id:S.target,activity_id:S.activity,...L}),"label draft saved");S.dirty=false;await refresh()}
 async function saveTarget(){const who=reviewer();const tm=S.meta.targets.find(x=>x.key===S.target);const p=Object.assign({},tm.payload,{identity_status:$("#tid_status").value,name:$("#tname").value});

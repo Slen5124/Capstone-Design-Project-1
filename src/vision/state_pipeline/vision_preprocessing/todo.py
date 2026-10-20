@@ -151,6 +151,23 @@ def build_todo(ctx: RunContext, images: list[dict] | None = None) -> dict:
             "나중에 막을 임시 통로는 ROI에 포함합니다(막히기 전 = not_installed).")
     section("roi_unapproved", "ROI 승인", roi_unapproved,
             "ROI 범위와 문·통로 제외가 맞으면 Approve ROI. 라벨 검수 전에 ROI를 먼저 확정하세요.")
+    # 2b. ROI sanity: ROIs of different targets in one view should not overlap much, and no ROI should carry a copy
+    #     of another target's polygon (left over in the draft while switching targets)
+    from .target_registry import roi_conflicts
+    conflicts, seen = [], set()
+    for key, r in rois.items():
+        tid, vid = key.split("|")
+        for c in roi_conflicts(store, vid, tid, r["payload"]["polygons"], r["payload"].get("exclusions"), min_overlap=0.10):
+            pair = (vid,) + tuple(sorted((tid, c["target_id"])))
+            if pair in seen and not c["polygon_copied_from_it"]:
+                continue
+            seen.add(pair)
+            conflicts.append({"roi": key, "view_id": vid, "target_id": tid, "other": c["target_id"],
+                              "overlap_of_smaller": c["overlap_of_smaller"], "copied_polygon": c["polygon_copied_from_it"],
+                              "reference_image_id": r["payload"].get("reference_image_id")})
+    section("roi_conflicts", "ROI 겹침 확인 (다른 대상과 겹치거나 다른 대상 폴리곤이 섞임)", conflicts,
+            "copied_polygon=true 이면 그 ROI에 다른 벽의 폴리곤이 들어 있습니다: 열기 → Edit vertices → 해당 폴리곤 선택 후 Delete → "
+            "Save → Approve. 단순 겹침이면 경계를 맞춰 주세요(천장-벽 경계의 몇 % 겹침은 괜찮습니다).")
     drift = _read(ctx, "drift/drift_report.json") or {}
     section("drift_redraw", "카메라가 밀린 날: ROI 다시 그려주세요", drift.get("redraw_requests", []),
             "그 날짜부터 새 구도를 만들고(그 날 사진을 기준으로) ROI를 다시 그리거나 복사해서 고치세요.")

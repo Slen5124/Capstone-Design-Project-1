@@ -3,7 +3,12 @@
     semantic head : 8 object classes  (semantic_masks, automatic pseudo-labels -> lower loss weight)
     state head    : 4 classes  0 not_installed / 1 installed   (state_masks/<activity>, human-approved)
                                2 occluded                      (visibility_masks == 2, human-reviewed)
-                               3 not_target (floor / ceiling pixels outside the wall ROIs - "this is not a wall")
+                               3 not_target  --state-outside full (default): every non-wall object pixel outside the
+                                             wall ROIs (floor, ceiling, duct, materials, tools, person) - so the state
+                                             map itself marks "measurable wall" (0/1/2) vs "not a target" (3) and an
+                                             ROI can be proposed from it on a new site.  Wall / stud pixels outside the
+                                             ROIs stay 255 (could be an untracked wall).
+                                             --state-outside roi (old): only floor / ceiling inside floor/ceiling ROIs.
     255 = ignore in both.  Model input is RGB only.
     installed ratio = installed / (installed + not_installed); occluded / not_target pixels are left out.
 
@@ -38,14 +43,15 @@ import torch.nn.functional as F
 
 N_SEM = 8
 N_STATE = 4                       # not_installed, installed, occluded, not_target
-NOT_TARGET_SEM = (1, 2)           # floor, ceiling
+NOT_TARGET_SEM = (1, 2)           # floor, ceiling            (--state-outside roi)
+NON_WALL_SEM = (1, 2, 4, 5, 6, 7)  # everything but wall / stud (--state-outside full)
 OCCLUDER_IDS = (5, 6, 7)          # construction_materials, tools, person (label_map.json of the export)
 MEAN = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
 STD = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
 
 
 # ------------------------------------------------------------------ data
-def read_export(export: Path, activity: str):
+def read_export(export: Path, activity: str, exclude=frozenset(), propagated_weight=0.5):
     meta = [json.loads(l) for l in (export / "metadata.jsonl").read_text(encoding="utf-8").splitlines() if l.strip()]
     splits = {}
     for s in ("train", "val", "test"):
@@ -58,6 +64,8 @@ def read_export(export: Path, activity: str):
     items = []
     for m in meta:
         sid = m["sample_id"]
+        if sid in exclude or m.get("image_id") in exclude:
+            continue
         split = next((s for s, ids in splits.items() if sid in ids), m.get("split"))
         if split not in ("train", "val", "test"):
             continue
@@ -69,7 +77,8 @@ def read_export(export: Path, activity: str):
                       "target": str(export / m["files"]["target"]), "state": str(state),
                       "visibility": str(export / m["files"]["visibility"]),
                       "date": (m.get("capture") or {}).get("time_local", "")[:10], "tindex": tindex,
-                      "wall_idx": wall_idx})
+                      "wall_idx": wall_idx, "label_source": m.get("label_source", "human"),
+                      "weight": propagated_weight if m.get("label_source") == "propagated" else 1.0})
     return items
 
 
@@ -82,18 +91,21 @@ def load_item(it):
     return img, sem, st, vis, tg
 
 
-def state_target(st, vis, sem, tg, wall_idx):
-    """4-class state target. Floor / ceiling ROIs (not_applicable activities) count as 'not a wall target'."""
+def state_target(st, vis, sem, tg, wall_idx, outside="full"):
+    """4-class state target (see module doc). tg: 0 none, k target index, 255 ignore/padding."""
     t = st.copy()
     in_wall = np.isin(tg, wall_idx)
     t[(st == 255) & (vis == 2) & in_wall] = 2
-    t[(st == 255) & ~in_wall & (tg != 255) & np.isin(sem, NOT_TARGET_SEM)] = 3
+    if outside == "roi":
+        t[(st == 255) & ~in_wall & (tg != 255) & np.isin(sem, NOT_TARGET_SEM)] = 3
+    else:
+        t[(st == 255) & ~in_wall & (tg != 255) & np.isin(sem, NON_WALL_SEM)] = 3
     return t
 
 
 class SegData(torch.utils.data.Dataset):
-    def __init__(self, items, train=False, copy_paste=0.0, seed=0):
-        self.items, self.train, self.copy_paste = items, train, copy_paste
+    def __init__(self, items, train=False, copy_paste=0.0, seed=0, outside="full"):
+        self.items, self.train, self.copy_paste, self.outside = items, train, copy_paste, outside
         self.rng = random.Random(seed)
 
     def __len__(self):
@@ -109,7 +121,7 @@ class SegData(torch.utils.data.Dataset):
         it = self.items[i]
         img, sem, st, vis, tg = load_item(it)
         img, sem = img.copy(), sem.copy()
-        st = state_target(st, vis, sem, tg, it["wall_idx"])
+        st = state_target(st, vis, sem, tg, it["wall_idx"], self.outside)
         if self.train:
             if self.copy_paste and self.rng.random() < self.copy_paste:
                 # paste the occluders (people / materials / tools) of another training photo over this one;
@@ -121,7 +133,7 @@ class SegData(torch.utils.data.Dataset):
                     sem[m] = dsem[m]
                     in_wall = np.isin(tg, it["wall_idx"])
                     st[m & in_wall] = 2
-                    st[m & ~in_wall] = 255
+                    st[m & ~in_wall & (tg != 255)] = 3 if self.outside == "full" else 255
             img = self._photometric(img)
         x = torch.from_numpy(img).permute(2, 0, 1).float() / 255.0
         x = (x - MEAN) / STD
@@ -244,7 +256,7 @@ def _ratio(pred, region):
     return (n1 / (n0 + n1) if n0 + n1 else None), ((n0 + n1) / (n0 + n1 + n2) if n0 + n1 + n2 else None)
 
 
-def evaluate(model, items, device, amp, overlay_dir=None, n_overlay=6):
+def evaluate(model, items, device, amp, overlay_dir=None, n_overlay=6, outside="full"):
     """Three installed-ratio errors, from easiest to the real inference situation:
          label_region : over the pixels the human label marks observable (old metric, optimistic)
          roi_model    : over the whole ROI; the model itself decides occluded / not_target pixels
@@ -254,7 +266,7 @@ def evaluate(model, items, device, amp, overlay_dir=None, n_overlay=6):
     sem_c, st_c = Confusion(N_SEM), Confusion(N_STATE)
     per = defaultdict(lambda: defaultdict(list))
     img_rows = defaultdict(lambda: defaultdict(list))
-    loader = torch.utils.data.DataLoader(SegData(items), batch_size=2, shuffle=False, num_workers=0)
+    loader = torch.utils.data.DataLoader(SegData(items, outside=outside), batch_size=2, shuffle=False, num_workers=0)
     shown = 0
     with torch.no_grad():
         for x, sem, st, idx in loader:
@@ -339,6 +351,25 @@ def semantic_class_weights(items, cap=10.0):
     w = np.where(f > 0, np.sqrt(med / np.maximum(f, 1e-12)), 1.0)
     return torch.tensor(np.clip(w, 0.5, cap), dtype=torch.float32), f
 
+def _export_size(export: Path):
+    """[W, H] the export was made with (export_report.json), so inference resizes photos the same way."""
+    try:
+        rep = json.loads((Path(export) / "export_report.json").read_text(encoding="utf-8"))
+        return rep.get("size")
+    except (OSError, ValueError):
+        return None
+
+
+def weighted_ce(logits, target, sample_w, class_w=None):
+    """Cross-entropy averaged per photo, then weighted per photo (propagated pseudo-labels count less)."""
+    loss = F.cross_entropy(logits, target, weight=class_w, ignore_index=255, reduction="none")
+    valid = (target != 255).float()
+    n = valid.sum((1, 2))
+    per = (loss * valid).sum((1, 2)) / n.clamp(min=1)
+    w = sample_w * (n > 0).float()
+    return (per * w).sum() / w.sum().clamp(min=1e-6)
+
+
 # ------------------------------------------------------------------ main
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -352,6 +383,13 @@ def main(argv=None):
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--sem-weight", type=float, default=0.5)
     ap.add_argument("--copy-paste", type=float, default=0.5, help="probability of occluder copy-paste per training photo")
+    ap.add_argument("--state-outside", choices=("full", "roi"), default="full",
+                    help="full: non-wall pixels outside the wall ROIs are trained as not_target (enables ROI proposal); "
+                         "roi: old behaviour (ablation)")
+    ap.add_argument("--propagated-weight", type=float, default=0.5,
+                    help="loss weight of propagated pseudo-label photos (label_source=propagated); human labels = 1")
+    ap.add_argument("--exclude-ids", nargs="*", default=[],
+                    help="image / sample ids to leave out (e.g. human labels found wrong in review); @file reads one id per line")
     ap.add_argument("--no-class-weights", action="store_true", help="plain semantic loss (no rare-class weighting)")
     ap.add_argument("--no-freeze", action="store_true", help="also train the encoder (not recommended with few labels)")
     ap.add_argument("--no-pretrained", action="store_true", help="random encoder weights (tests only)")
@@ -370,8 +408,16 @@ def main(argv=None):
     torch.manual_seed(args.seed)
     random.seed(args.seed)
     np.random.seed(args.seed)
-    items = [it for e in args.export for it in read_export(e, args.activity)]
-    split = {s: [it for it in items if it["split"] == s] for s in ("train", "val", "test")}
+    exclude = set()
+    for x in args.exclude_ids:
+        exclude |= set(Path(x[1:]).read_text(encoding="utf-8").split()) if x.startswith("@") else {x}
+    items = [it for e in args.export for it in read_export(e, args.activity, exclude, args.propagated_weight)]
+    # train on human + propagated; select / evaluate on human labels only (pseudo-labels never grade the model)
+    split = {"train": [it for it in items if it["split"] == "train"]}
+    for s in ("val", "test"):
+        split[s] = [it for it in items if it["split"] == s and it["label_source"] != "propagated"]
+    n_prop = sum(1 for it in split["train"] if it["label_source"] == "propagated")
+    print(f"excluded ids {len(exclude)} | propagated photos in train {n_prop} (weight {args.propagated_weight})", flush=True)
     if args.limit:
         split = {s: v[: args.limit] for s, v in split.items()}
     print({s: len(v) for s, v in split.items()}, flush=True)
@@ -392,22 +438,23 @@ def main(argv=None):
     steps = args.epochs * math.ceil(len(split["train"]) / args.batch)
     sched = torch.optim.lr_scheduler.OneCycleLR(opt, max_lr=args.lr, total_steps=max(steps, 1), pct_start=0.1)
     scaler = torch.amp.GradScaler(device.type, enabled=amp)
-    ce = nn.CrossEntropyLoss(ignore_index=255)
     w_sem, freq = semantic_class_weights(split["train"])
-    ce_sem = nn.CrossEntropyLoss(ignore_index=255, weight=w_sem.to(device) if not args.no_class_weights else None)
+    cw_sem = w_sem.to(device) if not args.no_class_weights else None
+    sample_w = torch.tensor([it["weight"] for it in split["train"]], dtype=torch.float32)
     print("semantic class freq", np.round(freq, 4).tolist(), "weights", np.round(w_sem.numpy(), 2).tolist(), flush=True)
-    loader = torch.utils.data.DataLoader(SegData(split["train"], train=True, copy_paste=args.copy_paste, seed=args.seed),
+    loader = torch.utils.data.DataLoader(SegData(split["train"], train=True, copy_paste=args.copy_paste, seed=args.seed, outside=args.state_outside),
                                          batch_size=args.batch, shuffle=True, num_workers=0, drop_last=False)
     best, log = -1e9, []
     for ep in range(1, args.epochs + 1):
         model.train()
         t0, tot, n = time.time(), 0.0, 0
-        for x, sem, st, _ in loader:
+        for x, sem, st, ix in loader:
             x, sem, st = x.to(device), sem.to(device), st.to(device)
+            sw = sample_w[ix].to(device)
             with torch.autocast(device_type=device.type, enabled=amp):
                 ls, lt = model(x)
-                loss_s = ce_sem(ls.float(), sem) if (sem != 255).any() else ls.sum() * 0
-                loss_t = ce(lt.float(), st) if (st != 255).any() else lt.sum() * 0
+                loss_s = weighted_ce(ls.float(), sem, sw, cw_sem) if (sem != 255).any() else ls.sum() * 0
+                loss_t = weighted_ce(lt.float(), st, sw) if (st != 255).any() else lt.sum() * 0
                 loss = args.sem_weight * loss_s + loss_t
             opt.zero_grad(set_to_none=True)
             scaler.scale(loss).backward()
@@ -418,13 +465,15 @@ def main(argv=None):
             n += x.shape[0]
         row = {"epoch": ep, "loss": round(tot / max(n, 1), 4), "sec": round(time.time() - t0, 1)}
         if split["val"] and (ep % max(1, args.epochs // 10) == 0 or ep == args.epochs):
-            v = evaluate(model, split["val"], device, amp)
+            v = evaluate(model, split["val"], device, amp, outside=args.state_outside)
             row.update(val_install_miou=v["state_miou_install"], val_sem_miou=v["semantic_miou_present"],
                        val_mae_roi_model=v["ratio_mae_roi_model"], val_mae_image_model=v["ratio_mae_image_model"])
             score = -(v["ratio_mae_roi_model"] if v["ratio_mae_roi_model"] is not None else 1.0)   # select on the inference-like error
             if score > best:
                 best = score
-                torch.save({"encoder": args.encoder, "decoder": args.decoder, "n_sem": N_SEM,
+                torch.save({"encoder": args.encoder, "decoder": args.decoder, "n_sem": N_SEM, "n_state": N_STATE,
+                            "state_outside": args.state_outside, "activity": args.activity,
+                            "export_size": _export_size(args.export[0]),
                             "state_dict": {k: t for k, t in model.state_dict().items() if not k.startswith("encoder.")},
                             "input": {"mean": MEAN.flatten().tolist(), "std": STD.flatten().tolist(), "rgb_only": True},
                             "exports": [str(e) for e in args.export], "epoch": ep, "val": v,
@@ -436,7 +485,8 @@ def main(argv=None):
         w = csv.DictWriter(f, fieldnames=sorted({k for r in log for k in r}))
         w.writeheader()
         w.writerows(log)
-    result = {"encoder": args.encoder, "decoder": args.decoder, "epochs": args.epochs, "counts": {s: len(v) for s, v in split.items()},
+    result = {"encoder": args.encoder, "decoder": args.decoder, "state_outside": args.state_outside, "epochs": args.epochs,
+              "propagated_in_train": n_prop, "propagated_weight": args.propagated_weight, "excluded_ids": sorted(exclude), "counts": {s: len(v) for s, v in split.items()},
               "device": str(device)}
     if (out / "model_quick.pt").exists():
         ck = torch.load(out / "model_quick.pt", map_location=device, weights_only=False)
@@ -444,7 +494,7 @@ def main(argv=None):
         result["best_epoch"] = ck["epoch"]
     for s in ("val", "test"):
         if split[s]:
-            result[s] = evaluate(model, split[s], device, amp, overlay_dir=out / "overlays" / s)
+            result[s] = evaluate(model, split[s], device, amp, overlay_dir=out / "overlays" / s, outside=args.state_outside)
     (out / "metrics.json").write_text(json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8")
     t = result.get("test") or {}
     si, se = t.get("state_iou") or {}, t.get("semantic_iou") or {}
