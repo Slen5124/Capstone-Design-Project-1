@@ -92,6 +92,9 @@ rem (3) 검수 창을 닫고(Ctrl+C) (1)의 두 번째 줄을 다시 실행 → 
     auto.py                전체 자동 실행·resume
     review_static\todo.html  할 일 화면
     cli.py, __main__.py    명령행
+    train\train_quick.py   학습: 동결 인코더 + 디코더(unet / upernet / linear) + 헤드 2개 (물체 8 · 상태 4)
+    train\infer_quick.py   인퍼런스: 사진 → 상태 맵 → ROI(주어진 것 / 자동 제안) → 설치율 → vision_output.json
+    train\infer_core.py    인퍼런스 후처리 (ROI 제안 · 설치율 · 날짜별 행 · 이벤트, torch 불필요)
     tests\                 합성 데이터 단위 테스트 (코드 동작 검증용)
     requirements_traceability.md
 ```
@@ -219,3 +222,23 @@ cd /d "D:\work\project\전처리된 데이터"
 ```
 
 합성 데이터로 49개 테스트(test_pipeline 26 + test_auto 23)를 돌리며, 코드 동작만 검증합니다. 실제 현장의 상태 인식 정확도를 보여주는 결과가 아닙니다.
+
+## 학습 · 인퍼런스 (`train\`, torch · timm 필요)
+
+```bat
+rem 학습 (기본: 상태 헤드가 ROI 밖 비벽 물체도 '대상 아님'으로 배움 → 새 현장에서 ROI 자동 제안 가능)
+.venv\Scripts\python -m vision_preprocessing.train.train_quick --export <run>\exports\<이름>_train_full --decoder unet
+rem   비교: --decoder upernet / linear,  예전 방식: --state-outside roi
+
+rem 인퍼런스 (구도 하나의 사진 폴더 단위)
+.venv\Scripts\python -m vision_preprocessing.train.infer_quick --model <학습 결과>\model_quick.pt ^
+    --images <사진 폴더> --site-id SITE_B --view V01 --out <출력 폴더>
+rem   승인된 ROI가 있으면: --roi-mask <export>\target_masks\<사진>.png --roi-targets <export>\targets.json
+```
+
+- ROI가 없으면 처음 쓸 만한 사진 3장에서 "측정 가능한 벽(미설치·설치·가려짐)" 영역을 투표로 묶어 A01, A02 …(왼쪽→오른쪽)로 **제안**합니다.
+  `provisional` 상태이므로 사람이 한 번 W01 … 로 대응시키고 확인해야 합니다. 같은 출력 폴더로 다시 돌리면 그 ROI를 그대로 씁니다.
+- 설치율 = ROI 안 설치 ÷ (설치 + 미설치). 보이는 비율이 0.3 미만이면 `held`(값 없음, 0으로 채우지 않음).
+- 결과: `vision_output.json`(에이전트 연동 형식 1.0), `photo_rows.jsonl`(사진별 값), `roi\`, `overlays\`(날짜별 첫 사진).
+- 구도 변경(카메라 이동) 감지는 아직 인퍼런스에 없습니다. 구도별로 나눠서 실행하세요.
+

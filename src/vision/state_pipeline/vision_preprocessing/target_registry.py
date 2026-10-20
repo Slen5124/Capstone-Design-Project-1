@@ -120,6 +120,46 @@ def save_roi(store, *, target_id: str, view_id: str, reference_image: dict, poly
     return store.put("roi", roi_key(target_id, view_id), payload, source=source, author=author, note=note)
 
 
+def _roi_geom(polygons, exclusions=()):
+    from shapely.geometry import Polygon
+    from shapely.ops import unary_union
+    g = unary_union([Polygon(q["exterior"], q.get("holes") or []).buffer(0) for q in polygons]) if polygons else None
+    for e in exclusions or ():
+        if g is not None:
+            g = g.difference(Polygon(e["points"]).buffer(0))
+    return g
+
+
+def roi_conflicts(store, view_id: str, target_id: str, polygons: list, exclusions=(), min_overlap: float = 0.10) -> list[dict]:
+    """Other targets' ROIs in the same view that this ROI overlaps (share of the smaller one), and polygons that are
+    copies of another target's polygon (the classic slip: the previous wall's polygon left in the draft)."""
+    from shapely.geometry import Polygon
+    mine = _roi_geom(polygons, exclusions)
+    if mine is None or mine.is_empty:
+        return []
+    out = []
+    for rec in store.latest("roi"):
+        tid, vid = rec["key"].split("|")
+        if vid != view_id or tid == target_id:
+            continue
+        p = rec["payload"]
+        other = _roi_geom(p["polygons"], p.get("exclusions"))
+        if other is None or other.is_empty:
+            continue
+        inter = mine.intersection(other).area / max(1.0, min(mine.area, other.area))
+        copies = []
+        for q in polygons:
+            a = Polygon(q["exterior"]).buffer(0)
+            for r in p["polygons"]:
+                b = Polygon(r["exterior"]).buffer(0)
+                if a.area and a.symmetric_difference(b).area < 0.01 * a.area:
+                    copies.append(True)
+        if copies or inter >= min_overlap:
+            out.append({"target_id": tid, "version": rec["version"], "overlap_of_smaller": round(inter, 3),
+                        "polygon_copied_from_it": bool(copies)})
+    return out
+
+
 def roi_hints(ctx, images_by_entry: dict) -> list[dict]:
     """qa_v3 teacher regions as display-only hints (normalized -> pixel)."""
     cfg = ctx.site.get("roi_hints") or {}

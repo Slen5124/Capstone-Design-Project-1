@@ -28,8 +28,8 @@ from .source_adapter import SourceIntegrityError, SourceReader, load_images
 from .state_annotations import (LabelError, eligibility, propagate_label_draft, save_label,
                                 save_manual_observation)
 from .store import StoreError
-from .target_registry import (RegistryError, compatible_activities, roi_hints, save_applicability, save_roi,
-                              save_target)
+from .target_registry import (RegistryError, compatible_activities, roi_conflicts, roi_hints, save_applicability,
+                              save_roi, save_target)
 
 STATIC = Path(__file__).resolve().parent / "review_static"
 
@@ -49,6 +49,11 @@ class ReviewService:
         self.obs_cache = open_observation_cache(ctx)  # one in-memory cache for the server's lifetime
         self.hints = roi_hints(ctx, {im["source_photo"]["entry"]: im for im in self.images})
         self.bg = {"running": False}
+        self._bg_queue: list[str] = []          # image ids waiting for a background observation refresh
+        self._bg_cv = threading.Condition()
+        self._bg_thread = None
+        self._obs_gen = 0                       # bumps whenever observations change (list cache key)
+        self._list_cache = (None, None)
         self.samples = {s["image_id"]: s for s in read_jsonl(ctx.run_dir / "stages" / "samples" / "samples.jsonl")}
 
     # ---------------------------------------------------------- helpers
@@ -143,6 +148,14 @@ class ReviewService:
                 "store_counts": self.store.counts(), "background_refresh": self.bg}
 
     def image_list(self) -> list[dict]:
+        key = (self.store.change_token(), self._obs_gen)
+        if self._list_cache[0] == key:
+            return self._list_cache[1]
+        out = self._image_list()
+        self._list_cache = (key, out)
+        return out
+
+    def _image_list(self) -> list[dict]:
         views = store_views(self.store)
         labels, label_status = {}, {}
         states = self.store.review_states("state_label")
@@ -295,6 +308,8 @@ class ReviewService:
                 o = self.obs().get(obs_key(image_id, r["key"]))
                 cur = rois.get(roi_key(r["key"], v["view_id"])) if v["view_id"] else None
                 ref = (o or {}).get("roi_ref") or {}
+                if image_id in self._bg_queue:
+                    break                                  # refreshed in the background shortly (shown as stale)
                 if o is None or (cur is not None and o.get("roi_source") != "manual"
                                  and (ref.get("kind") != "roi" or ref.get("version") != cur)):
                     with self.lock:
@@ -330,22 +345,41 @@ class ReviewService:
         author = (body.get("author") or "").strip()
         if not author:
             raise StoreError("enter your reviewer name first")
+        # store-only actions: no need to wait for the photo lock (background refresh / ZIP reads)
+        if path == "/api/decide":
+            return self.store.decide(body["kind"], body["key"], int(body["version"]), author,
+                                     body.get("decision", "approved"), body.get("note"))
+        if path == "/api/target":
+            return save_target(self.store, body["payload"], author)
+        if path == "/api/applicability":
+            return save_applicability(self.store, body["target_id"], body["activity_id"], body["applicability"],
+                                      body.get("basis", ""), author, self.tax)
+        if path == "/api/roi_copy":
+            return self.roi_copy(body, author)       # store writes only; photos refresh in the background
+        if path == "/api/roi":
+            # saving the ROI is a single store write - answer at once; the reference photo is refreshed first in the
+            # background, then every other photo of the view (no waiting for ZIP reads / registration here)
+            view = self.store.get("view", body["view_id"])
+            if view is None:
+                raise RegistryError("unknown view")
+            ref = self.image(view["payload"]["reference_image_id"])
+            if body.get("image_id") != ref["image_id"]:
+                raise RegistryError("ROI must be drawn on the view's reference image")
+            if not body.get("allow_overlap"):
+                bad = [c for c in roi_conflicts(self.store, body["view_id"], body["target_id"], body["polygons"],
+                                                body.get("exclusions", []), min_overlap=0.5)]
+                if bad:
+                    raise RegistryError("; ".join(
+                        (f"이 ROI의 폴리곤 하나가 {c['target_id']}의 ROI와 똑같습니다 (이전 벽 폴리곤이 초안에 남음) - 지우고 저장하세요"
+                         if c["polygon_copied_from_it"] else
+                         f"{c['target_id']} ROI와 {c['overlap_of_smaller']:.0%} 겹칩니다 - 경계를 확인하세요") for c in bad))
+            result = save_roi(self.store, target_id=body["target_id"], view_id=body["view_id"], reference_image=ref,
+                              polygons=body["polygons"], exclusions=body.get("exclusions", []), author=author,
+                              note=body.get("note"))
+            if result.get("changed", True):
+                self.refresh_view_async(body["view_id"], first=[ref["image_id"]])
+            return dict(result, background_refresh=self.bg)
         with self.lock:
-            if path == "/api/roi":
-                view = self.store.get("view", body["view_id"])
-                if view is None:
-                    raise RegistryError("unknown view")
-                ref = self.image(view["payload"]["reference_image_id"])
-                if body.get("image_id") != ref["image_id"]:
-                    raise RegistryError("ROI must be drawn on the view's reference image")
-                result = save_roi(self.store, target_id=body["target_id"], view_id=body["view_id"], reference_image=ref,
-                                  polygons=body["polygons"], exclusions=body.get("exclusions", []), author=author,
-                                  note=body.get("note"))
-                self._reassign([ref])
-                self.refresh_view_async(body["view_id"])  # every photo of the view follows the new ROI
-                return dict(result, background_refresh=self.bg)
-            if path == "/api/roi_copy":
-                return self.roi_copy(body, author)
             if path == "/api/label":
                 im = self.image(body["image_id"])
                 auto = self.obs().get(obs_key(im["image_id"], body["target_id"]))
@@ -424,8 +458,9 @@ class ReviewService:
 
     def _reassign(self, images):
         build_observations(self.ctx, images=[im for im in images if im["status"] == "ok"], cache=self.obs_cache,
-                           quiet=True)
+                           quiet=True, all_images=self.images)
         self._obs = None
+        self._obs_gen += 1
 
     # -- background refresh of whole views (so no photo is left with a stale ROI) --
     def view_images(self, view_id, focus_only: bool = True):
@@ -435,18 +470,46 @@ class ReviewService:
                 and (focus is None or im["image_id"] in focus)
                 and (view_id is None or assign_view(im, views)["view_id"] == view_id)]
 
-    def refresh_view_async(self, view_id=None):
-        def work(ims):
-            try:
-                self.bg = {"running": True, "images": len(ims), "view": view_id}
-                for i in range(0, len(ims), 8):          # small chunks so UI requests are not blocked long
-                    with self.lock:
-                        self._reassign(ims[i:i + 8])
-                    self.bg["done"] = min(len(ims), i + 8)
-            finally:
-                self.bg = dict(self.bg, running=False)
+    def refresh_view_async(self, view_id=None, first=()):
+        """Queue the view's photos for a background observation refresh.
+
+        One worker thread for the whole server (several ROI saves no longer start competing threads); it refreshes
+        ONE photo per lock hold and pauses in between, so clicks in the UI are served between photos."""
         ims = self.view_images(view_id)
-        threading.Thread(target=work, args=(ims,), daemon=True).start()
+        with self._bg_cv:
+            front = [i for i in first if i in self.by_id]
+            rest = [i for i in self._bg_queue if i not in front]
+            queued = set(front) | set(rest)
+            self._bg_queue = front + rest + [im["image_id"] for im in ims if im["image_id"] not in queued]
+            running = self._bg_thread is not None and self._bg_thread.is_alive()
+            self.bg = dict(self.bg, running=True, view=view_id, queued=len(self._bg_queue),
+                           images=(self.bg.get("done", 0) if running else 0) + len(self._bg_queue))
+            if not running:
+                self.bg["done"] = 0
+            if self._bg_thread is None or not self._bg_thread.is_alive():
+                self._bg_thread = threading.Thread(target=self._bg_worker, daemon=True)
+                self._bg_thread.start()
+            self._bg_cv.notify()
+
+    def _bg_worker(self):
+        import time
+        done = 0
+        while True:
+            with self._bg_cv:
+                if not self._bg_queue:
+                    self.bg = dict(self.bg, running=False, queued=0)
+                    return
+                iid = self._bg_queue.pop(0)
+            im = self.by_id.get(iid)
+            if im is not None:
+                try:
+                    with self.lock:
+                        self._reassign([im])
+                except Exception:  # noqa: BLE001 - one bad photo must not stop the refresh
+                    traceback.print_exc()
+            done += 1
+            self.bg = dict(self.bg, done=done, queued=len(self._bg_queue), images=done + len(self._bg_queue))
+            time.sleep(0.05)                      # let waiting UI requests take the lock
 
     def todo(self) -> dict:
         from .todo import build_todo, rebase_candidates
@@ -607,8 +670,8 @@ class ReviewService:
             except (RegistryError, StoreError) as error:
                 skipped.append({"target": tid, "reason": str(error)[:120]})
         if done:
-            self.refresh_view_async(dst_view)
-        return {"copied": done, "skipped": skipped}
+            self.refresh_view_async(dst_view, first=[ref["image_id"]])
+        return {"copied": done, "skipped": skipped, "from_view": src_view, "to_view": dst_view}
 
 
 def make_handler(service: ReviewService):
@@ -630,7 +693,22 @@ def make_handler(service: ReviewService):
                 # nothing to answer, nothing lost
                 self.close_connection = True
 
+        def _timed(self, t0, what):
+            import time
+            dt = time.time() - t0
+            if dt > 1.5:
+                print(f"[review] slow {what} {self.path.split('?')[0][:60]} {dt:.1f}s (background queue {len(service._bg_queue)})",
+                      flush=True)
+
         def do_GET(self):
+            import time
+            t0 = time.time()
+            try:
+                return self._do_get()
+            finally:
+                self._timed(t0, "GET")
+
+        def _do_get(self):
             url = urlparse(self.path)
             q = parse_qs(url.query)
             try:
@@ -667,6 +745,14 @@ def make_handler(service: ReviewService):
                 return self._send(500, {"error": f"{type(error).__name__}: {error}"})
 
         def do_POST(self):
+            import time
+            t0 = time.time()
+            try:
+                return self._do_post()
+            finally:
+                self._timed(t0, "POST")
+
+        def _do_post(self):
             try:
                 length = int(self.headers.get("Content-Length", "0"))
                 body = json.loads(self.rfile.read(length) or b"{}")

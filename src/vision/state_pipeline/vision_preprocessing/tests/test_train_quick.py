@@ -68,8 +68,10 @@ class TestTrainQuick(unittest.TestCase):
         vis = np.array([[1, 1, 2, 1, 0, 2]], np.uint8)
         sem = np.array([[0, 0, 7, 2, 0, 7]], np.uint8)
         tg = np.array([[3, 3, 3, 1, 0, 1]], np.uint8)        # 3 = wall ROI, 1 = ceiling ROI, 0 = none
-        # wall-ROI occluder -> occluded; ceiling ROI -> not_target; outside-ROI wall and ceiling-ROI person -> unknown
-        self.assertEqual(state_target(st, vis, sem, tg, [3, 4]).tolist(), [[0, 1, 2, 3, 255, 255]])
+        # old 'roi' mode: wall-ROI occluder -> occluded; ceiling ROI -> not_target; outside-ROI wall / person -> unknown
+        self.assertEqual(state_target(st, vis, sem, tg, [3, 4], "roi").tolist(), [[0, 1, 2, 3, 255, 255]])
+        # default 'full': any non-wall object outside the wall ROIs is not_target; a wall outside the ROIs stays unknown
+        self.assertEqual(state_target(st, vis, sem, tg, [3, 4]).tolist(), [[0, 1, 2, 3, 255, 3]])
 
     def test_all_decoders_run_and_write_outputs(self):
         from vision_preprocessing.train.train_quick import main
@@ -92,6 +94,33 @@ class TestTrainQuick(unittest.TestCase):
                 self.assertTrue(list((out / "overlays" / "test").glob("*.jpg")))
                 ck = torch.load(out / "model_quick.pt", weights_only=False)
                 self.assertFalse(any(k.startswith("encoder.") for k in ck["state_dict"]))   # encoder not saved
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_infer_proposes_roi_and_writes_vision_output(self):
+        from vision_preprocessing.train.train_quick import main as train
+        from vision_preprocessing.train.infer_quick import main as infer
+        tmp = Path(tempfile.mkdtemp(prefix="vp_infer_"))
+        try:
+            fake_export(tmp / "exp")
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(train(["--export", str(tmp / "exp"), "--encoder", "convnext_atto", "--no-pretrained",
+                                        "--epochs", "2", "--batch", "2", "--out", str(tmp / "m")]), 0)
+                args = ["--model", str(tmp / "m" / "model_quick.pt"), "--images", str(tmp / "exp" / "images"),
+                        "--site-id", "SITE", "--view", "V01", "--no-pretrained", "--size", "160", "96",
+                        "--time-regex", r"-(?P<date>\d{8})T(?P<time>\d{6})"]
+                self.assertEqual(infer(args + ["--out", str(tmp / "auto")]), 0)
+                self.assertEqual(infer(args + ["--out", str(tmp / "auto")]), 0)            # second run reuses the ROI
+                self.assertEqual(infer(args + ["--out", str(tmp / "given"), "--roi-mask",
+                                               str(next((tmp / "exp" / "target_masks").glob("*.png"))),
+                                               "--roi-targets", str(tmp / "exp" / "targets.json")]), 0)
+            auto = json.loads((tmp / "auto" / "vision_output.json").read_text(encoding="utf-8"))
+            self.assertEqual(auto["schema_version"], "vision_output/1.0")
+            self.assertTrue((tmp / "auto" / "roi" / "V01_roi.png").exists())
+            self.assertTrue(all(r["source"] == "model" for r in auto["daily_progress"]))
+            given = json.loads((tmp / "given" / "vision_output.json").read_text(encoding="utf-8"))
+            self.assertEqual(sorted({r["target_id"] for r in given["daily_progress"]}), ["W01", "W02"])
+            self.assertFalse(any(r["provisional"] for r in given["daily_progress"]))
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
