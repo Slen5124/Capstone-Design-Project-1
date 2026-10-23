@@ -17,7 +17,15 @@ from .runctx import RunContext, atomic_write_json
 from .schemas import geometry_to_polys, polygon_geometry
 from .source_adapter import SourceIntegrityError, SourceReader
 from .store import StoreError
-from .target_registry import RegistryError, save_roi
+from .target_registry import RegistryError, measured_targets, roi_skips, save_roi
+
+
+def _ts(t: str) -> float:
+    from datetime import datetime
+    try:
+        return datetime.strptime(t[:19], "%Y-%m-%dT%H:%M:%S").timestamp()
+    except ValueError:
+        return 0.0
 
 
 def _clip(polys, excl, size):
@@ -40,20 +48,33 @@ def draft_missing_rois(ctx: RunContext, images: list[dict]) -> dict:
     targets = [r for r in store.latest("target") if r["payload"].get("identity_status") != "retired"]
     rois = {r["key"]: r for r in store.latest("roi")}
     roi_states = store.review_states("roi")
+    # no drafts for targets that are not measured (every activity approved not_applicable) or that the reviewer marked
+    # "not visible" in this view: each attempt is a full-resolution registration of two photos (seconds, from the ZIP)
+    measured, skips = measured_targets(store), roi_skips(store)
+    targets = [t for t in targets if t["key"] in measured]
+    starts = {v["view_id"]: v.get("start_time") or "" for v in views}
     reader = SourceReader(ctx)
     created, failed, skipped = [], [], []
+    import time
+    t0 = time.time()
     try:
-        for v in views:
+        for n, v in enumerate(views, 1):
             ref = by_id.get(v.get("reference_image_id"))
             if ref is None:
                 skipped.append({"view_id": v["view_id"], "reason": "reference_not_in_run"})
                 continue
             for t in targets:
                 key = f"{t['key']}|{v['view_id']}"
-                if key in rois:
+                if key in rois or key in skips:
                     continue
                 sources = [r for k, r in rois.items() if k.startswith(t["key"] + "|") and k != key]
-                sources.sort(key=lambda r: (roi_states.get(r["key"], {}).get("status") != "approved", -r["version"]))
+                # approved first, then the views nearest in time (the camera usually moves little between neighbours);
+                # at most 4 attempts per missing ROI
+                sources.sort(key=lambda r: (roi_states.get(r["key"], {}).get("status") != "approved",
+                                            abs(_ts(starts.get(r["key"].split("|")[1], "")) - _ts(starts.get(v["view_id"], "")))))
+                sources = sources[:4]
+                print(f"[roi_drafts] {v['view_id']} {t['key']}: no ROI, trying {len(sources)} source view(s) "
+                      f"({n}/{len(views)} views, {time.time() - t0:.0f}s)", flush=True)
                 attempts = []
                 for src in sources:
                     sref = by_id.get(src["payload"]["reference_image_id"])

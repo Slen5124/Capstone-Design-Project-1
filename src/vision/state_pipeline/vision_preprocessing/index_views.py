@@ -35,6 +35,16 @@ def store_views(store) -> list[dict]:
     return out
 
 
+def excluded_views(store) -> dict[str, dict]:
+    """Views a reviewer took out of training ('view_exclusion' records): view_id -> payload (reason, note)."""
+    return {r["key"]: r["payload"] for r in store.latest("view_exclusion") if r["payload"].get("exclude_from_training")}
+
+
+def drift_acks(store) -> set[tuple[str, str]]:
+    """(view_id, day) camera-drift days a reviewer accepted ('ROI still fits')."""
+    return {tuple(r["key"].split("|", 1)) for r in store.latest("drift_ack") if r["payload"].get("accepted")}
+
+
 def assign_view(image: dict, views: list[dict]) -> dict:
     """Return {"view_id", "status", "candidates"} for an image."""
     matches = []

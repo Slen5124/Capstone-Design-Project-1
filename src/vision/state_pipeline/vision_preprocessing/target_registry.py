@@ -107,6 +107,21 @@ def save_roi(store, *, target_id: str, view_id: str, reference_image: dict, poly
     view = store.get("view", view_id)
     if target is None or view is None:
         raise RegistryError("unknown target or view")
+    from .schemas import sanitize_polygons
+    size = tuple(reference_image["size"])
+    polygons, fixes = sanitize_polygons(polygons, size, "ROI")
+    if isinstance(exclusions, list) and all(isinstance(e, dict) for e in exclusions):
+        clean = []
+        for i, e in enumerate(exclusions):
+            ps, notes = sanitize_polygons([{"exterior": e.get("points"), "holes": []}], size, f"제외영역[{i}]")
+            fixes += notes
+            if ps and isinstance(ps[0], dict) and "exterior" in ps[0]:
+                clean += [dict(e, points=q["exterior"]) for q in ps]
+            elif not ps:
+                continue
+            else:
+                clean.append(e)
+        exclusions = clean
     payload = {"target_id": target_id, "view_id": view_id, "reference_image_id": reference_image["image_id"],
                "reference_image_sha256": reference_image["source_photo"].get("sha256"),
                "image_size": list(reference_image["size"]), "coord_space": "original_pixel_xy",
@@ -117,7 +132,8 @@ def save_roi(store, *, target_id: str, view_id: str, reference_image: dict, poly
         raise RegistryError("; ".join(errors))
     # ROI approvals depend only on the ROI itself. Target/view approval is checked separately at
     # export time, so renaming a target or confirming its identity does not invalidate geometry.
-    return store.put("roi", roi_key(target_id, view_id), payload, source=source, author=author, note=note)
+    result = store.put("roi", roi_key(target_id, view_id), payload, source=source, author=author, note=note)
+    return dict(result, fixed=fixes) if fixes else result
 
 
 def _roi_geom(polygons, exclusions=()):
@@ -130,15 +146,33 @@ def _roi_geom(polygons, exclusions=()):
     return g
 
 
-def roi_conflicts(store, view_id: str, target_id: str, polygons: list, exclusions=(), min_overlap: float = 0.10) -> list[dict]:
+def measured_targets(store) -> set:
+    """Targets with at least one activity that is not an approved 'not_applicable' (only those are measured / need ROIs)."""
+    states = store.review_states("applicability")
+    na = {}
+    for r in store.latest("applicability"):
+        t = r["payload"]["target_id"]
+        na.setdefault(t, []).append(r["payload"]["applicability"] == "not_applicable"
+                                    and states.get(r["key"], {}).get("status") == "approved")
+    return {r["key"] for r in store.latest("target") if not (na.get(r["key"]) and all(na[r["key"]]))}
+
+
+def roi_skips(store) -> set:
+    """'target|view' pairs a reviewer marked as not visible in that view (no ROI wanted there)."""
+    return {r["key"] for r in store.latest("roi_skip") if r["payload"].get("visible") is False}
+
+
+def roi_conflicts(store, view_id: str, target_id: str, polygons: list, exclusions=(), min_overlap: float = 0.10,
+                  rois: list | None = None) -> list[dict]:
     """Other targets' ROIs in the same view that this ROI overlaps (share of the smaller one), and polygons that are
-    copies of another target's polygon (the classic slip: the previous wall's polygon left in the draft)."""
+    copies of another target's polygon (the classic slip: the previous wall's polygon left in the draft).
+    ``rois``: the current ROI records if the caller already has them (the to-do audit checks every ROI)."""
     from shapely.geometry import Polygon
     mine = _roi_geom(polygons, exclusions)
     if mine is None or mine.is_empty:
         return []
     out = []
-    for rec in store.latest("roi"):
+    for rec in (rois if rois is not None else store.latest("roi")):
         tid, vid = rec["key"].split("|")
         if vid != view_id or tid == target_id:
             continue

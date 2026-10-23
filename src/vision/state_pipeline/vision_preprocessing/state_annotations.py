@@ -14,7 +14,7 @@ Training eligibility of (image, target, activity) requires ALL of:
 from __future__ import annotations
 
 from .schemas import (STATE_NAMES, applicability_key, label_key, obs_key, roi_effective_geometry, roi_key,
-                      validate_polygons)
+                      sanitize_polygons, validate_polygons)
 
 
 class LabelError(ValueError):
@@ -61,9 +61,10 @@ def label_dependencies(store, roi_ref: dict) -> list:
     """
     ref = store.get(roi_ref["kind"], roi_ref["key"])
     if ref is None:
-        raise LabelError(f"ROI reference {roi_ref} not found")
+        raise LabelError(f"ROI {roi_ref.get('key')} 를 찾을 수 없습니다 (ROI reference not found)")
     if ref["version"] != roi_ref["version"]:
-        raise LabelError(f"ROI {roi_ref['key']} is now v{ref['version']}, label drawn on v{roi_ref['version']}")
+        raise LabelError(f"ROI {roi_ref['key']} 가 v{ref['version']}로 바뀌었는데 라벨은 v{roi_ref['version']} 기준입니다. "
+                         "사진을 다시 열어 주세요 (ROI changed)")
     return [(roi_ref["kind"], roi_ref["key"], roi_ref["version"])]
 
 
@@ -80,14 +81,37 @@ def save_label(store, taxonomy: dict, image: dict, payload: dict, *, author: str
     payload.setdefault("undeterminable", [])
     payload.setdefault("occluded", [])
     payload.setdefault("fill_roi_state", None)
+    payload, fixes = sanitize_label(payload, tuple(image["size"]))
     errors = validate_label(payload, taxonomy, tuple(image["size"]))
     if errors:
-        raise LabelError("; ".join(errors))
+        raise LabelError("라벨을 저장할 수 없습니다: " + "; ".join(errors))
     if store.get("applicability", applicability_key(payload["target_id"], payload["activity_id"])) is None:
         raise LabelError("no applicability record for this target/activity")
     deps = label_dependencies(store, payload["roi_ref"])
     key = label_key(image["image_id"], payload["target_id"], payload["activity_id"])
-    return store.put("state_label", key, payload, source=source, author=author, deps=deps)
+    result = store.put("state_label", key, payload, source=source, author=author, deps=deps)
+    if fixes:
+        result = dict(result, fixed=fixes)
+    return result
+
+
+def sanitize_label(payload: dict, size) -> tuple[dict, list[str]]:
+    """Clamp / repair every hand-drawn polygon of a label (see schemas.sanitize_polygons); regions or items left
+    without any polygon are dropped."""
+    payload, fixes = dict(payload), []
+    for field in ("regions", "undeterminable", "occluded"):
+        items = []
+        for i, item in enumerate(payload.get(field) or []):
+            if not isinstance(item, dict):
+                items.append(item)
+                continue
+            polys, notes = sanitize_polygons(item.get("polygons", []), size, f"{field}[{i}]")
+            fixes += notes
+            if isinstance(polys, list) and not polys and item.get("polygons"):
+                continue
+            items.append(dict(item, polygons=polys))
+        payload[field] = items
+    return payload, fixes
 
 
 def save_manual_observation(store, image: dict, target_id: str, payload: dict, author: str) -> dict:

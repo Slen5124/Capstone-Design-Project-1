@@ -107,8 +107,12 @@ def plan_export(ctx: RunContext, mode: str, images: list[dict], assignments: dic
     targets = _targets(store, tax)
     plan, reasons = [], Counter()
     eligible_count = 0
+    from .index_views import assign_view, excluded_views, store_views
+    excl, views = excluded_views(store), store_views(store)
     for im in images:
         split = (assignments or {}).get(im["image_id"], {}).get("split", "unsplit")
+        if excl and assign_view(im, views)["view_id"] in excl:
+            split = "excluded_view"              # reviewer took this camera view out of training
         row = {"image": im, "split": split, "targets": []}
         for t in targets:
             obs = obs_all.get(obs_key(im["image_id"], t["target_id"]))
