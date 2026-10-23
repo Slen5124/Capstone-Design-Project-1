@@ -128,7 +128,7 @@ cd qa_v3 && ..\.venv\Scripts\python -m unittest discover -p "test_*.py" && cd ..
 cd qa_v2 && ..\.venv\Scripts\python -m unittest discover -p "test_*.py" && cd ..
 ```
 
-확인된 결과: vision_preprocessing 59개 · qa_v3 83개 · qa_v2 42개 통과 (학습 · 인퍼런스 테스트 3개는 torch/timm이 없으면 건너뜀).
+확인된 결과: vision_preprocessing 78개 · qa_v3 83개 · qa_v2 42개 통과 (학습 · 인퍼런스 테스트 3개는 torch/timm이 없으면 건너뜀).
 
 ## 원칙
 

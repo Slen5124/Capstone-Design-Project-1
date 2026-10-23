@@ -33,5 +33,17 @@ class TestRoiConflicts(unittest.TestCase):
         self.assertFalse(c[0]["polygon_copied_from_it"])
 
 
+
+class TestViewExclusionAndDriftAck(unittest.TestCase):
+    def test_records(self):
+        from vision_preprocessing.index_views import drift_acks, excluded_views
+        st = ReviewStore(Path(tempfile.mkdtemp(prefix="vp_ex_")) / "s.sqlite")
+        st.put("view_exclusion", "V26", {"view_id": "V26", "exclude_from_training": True, "reason": "x"}, source="manual", author="t")
+        st.put("view_exclusion", "V27", {"view_id": "V27", "exclude_from_training": False}, source="manual", author="t")
+        st.put("drift_ack", "V07|2025-10-08", {"view_id": "V07", "day": "2025-10-08", "accepted": True}, source="manual", author="t")
+        self.assertEqual(sorted(excluded_views(st)), ["V26"])
+        self.assertEqual(drift_acks(st), {("V07", "2025-10-08")})
+
+
 if __name__ == "__main__":
     unittest.main()
