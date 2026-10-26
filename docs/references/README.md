@@ -21,12 +21,16 @@
 | `kpi-metrics` | KPI 설계, 유입률/침투율 등 지표 정의 |
 | `privacy` | CCTV 데이터 프라이버시, 익명화 |
 | `viz-dashboard` | 대시보드·시각화 방법론 |
+| `vlm-hallucination` | 이미지 설명의 시각적 근거 검증과 오류 교정 |
+| `long-context` | 긴 입력에서의 정보 활용·근거 인용 평가 |
+| `agent-evaluation` | Agent 답변의 근거·정확성·판단불가 처리 평가 |
 
 ## 인덱스
 
 | 자료 | 저자/연도 | 태그 | 한 줄 요약 | 노트 |
 | --- | --- | --- | --- | --- |
-| - | - | - | - | - |
+| [Woodpecker](https://arxiv.org/abs/2310.16045) | Yin et al., 2024 | `vlm-hallucination`, `agent-evaluation` | 이미지 근거로 VLM 답변의 물체·속성 오류를 사후 교정 | [리뷰](yin2024-woodpecker.md) · [PDF](papers/yin2024-woodpecker.pdf) |
+| [HELMET](https://arxiv.org/abs/2410.02694) | Yen et al., 2025 | `long-context`, `agent-evaluation` | 긴 문맥의 정보 활용을 RAG·인용·요약 등 7개 범주로 평가 | [리뷰](yen2025-helmet.md) · [PDF](papers/yen2025-helmet.pdf) |
 
 ## 읽을 목록 (Reading List)
 
