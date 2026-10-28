@@ -128,8 +128,12 @@ def git_commit() -> dict:
 
 # ------------------------------------------------------------------ determinism
 def set_determinism(seed: int):
-    """Same seed -> same run (on the same machine / software). Must run before the first CUDA call."""
-    os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+    """Fix every seed (initialisation, data order and augmentation follow from it). Must run before the first CUDA call.
+
+    Strict GPU determinism (cudnn.deterministic / use_deterministic_algorithms) is deliberately OFF: on the reference
+    laptop it made training 8x slower (5.5 s vs 0.67 s per step). Without it, GPU results differ between repeated runs
+    only in the last digits (summation order); that is far below the seed-to-seed spread we report (3 seeds, mean +- std)
+    and is measured once across PCs with `compare`. cudnn.benchmark stays OFF so the algorithm choice does not vary."""
     os.environ.setdefault("PYTHONHASHSEED", "0")
     import numpy as np
     import torch
@@ -137,11 +141,9 @@ def set_determinism(seed: int):
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.deterministic = False
     torch.backends.cudnn.benchmark = False
-    torch.use_deterministic_algorithms(True, warn_only=True)   # bilinear-upsample backward has no deterministic CUDA kernel
-    import warnings
-    warnings.filterwarnings("once", message=".*does not have a deterministic implementation.*")
+    torch.use_deterministic_algorithms(False)
 
 
 def rng_state() -> dict:
