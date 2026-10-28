@@ -71,9 +71,12 @@
 
 - 난수: Python / NumPy / PyTorch(CPU·GPU) 고정, 셔플 순서는 (시드, epoch)로, 증강 난수는 (시드, epoch, 사진 번호)로 결정
   → 작업자 수와 이어서 실행 여부에 상관없이 같은 데이터 순서·증강.
-- `cudnn.deterministic=True`, `benchmark=False`, `use_deterministic_algorithms(warn_only=True)`, `CUBLAS_WORKSPACE_CONFIG=:4096:8`.
-- GPU의 혼합정밀도와 보간 역전파는 비트 단위로 같지 않을 수 있다 → 같은 PC·같은 소프트웨어에서 "거의 같음".
-  두 PC에서 같은 설정 1회(upernet / SITE_B / 시드 0)를 돌려 차이를 `compare`로 기록한다.
+- 엄격한 GPU 결정론(`cudnn.deterministic`, `use_deterministic_algorithms`)은 **쓰지 않는다**(2026-10-28 결정, 첫 실측 전).
+  기준 노트북(RTX 4060 Laptop)에서 학습이 8배 느려졌다(step당 5.5초 → 끄면 0.67초, 실행 1회 26시간 → 약 3.2시간).
+  `cudnn.benchmark=False`는 유지(실행마다 연산 방식이 바뀌지 않게).
+- 따라서 GPU 결과는 같은 시드로 다시 돌려도 덧셈 순서 차이로 끝자리가 조금 다를 수 있다. 이 차이는 보고하는
+  시드 간 편차(시드 3개, 평균 ± 표준편차)보다 작을 것으로 예상하며, 두 PC에서 같은 설정 1회(upernet / SITE_B / 시드 0)를
+  돌려 `compare`로 실제 크기를 기록한다.
 - 실행마다 `config.json`(설정·버전·GPU·코드 해시·git 커밋·인코더 가중치 해시·데이터 해시), `environment.txt`,
   `split_manifest.json`을 학습 전에 저장. 번들과 export는 `check`가 해시로 확인한다.
 - 중간 저장은 `resume.pt` 하나를 매 epoch 덮어쓰고(가중치·옵티마이저·스케줄러·AMP·난수 상태), 끝나면 지운다.
