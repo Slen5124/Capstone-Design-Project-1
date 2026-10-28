@@ -60,18 +60,36 @@ def fake_export(root: Path, n=12, h=96, w=160):
                                        encoding="utf-8")
 
 
+class TestReadExport(unittest.TestCase):
+    """read_export needs no torch (train/data_prep.py): weak-label exports train only, with their own weight."""
+
+    def test_weak_export_is_train_only(self):
+        from vision_preprocessing.train.data_prep import Surfaces, read_export
+        tmp = Path(tempfile.mkdtemp())
+        fake_export(tmp, n=12)
+        wall = Surfaces("wall_board_installation")
+        human = read_export(tmp, wall)
+        self.assertEqual({it["split"] for it in human}, {"train", "val", "test"})
+        self.assertTrue(all(it["weight"] == 1.0 and it["label_source"] == "human" for it in human))
+        weak = read_export(tmp, wall, weak_weight=0.3)
+        self.assertEqual(len(weak), 12)
+        self.assertTrue(all(it["split"] == "train" and it["weight"] == 0.3 and it["label_source"] == "weak" for it in weak))
+
+
 @unittest.skipUnless(HAVE, "torch/timm not installed")
 class TestTrainQuick(unittest.TestCase):
     def test_state_target_classes(self):
-        from vision_preprocessing.train.train_quick import state_target
+        from vision_preprocessing.train.data_prep import Surfaces, state_target
+        wall = Surfaces("wall_board_installation")
+        it = {"slot_of": {3: 0, 4: 0}, "only_targets": None}
         st = np.array([[0, 1, 255, 255, 255, 255]], np.uint8)
         vis = np.array([[1, 1, 2, 1, 0, 2]], np.uint8)
         sem = np.array([[0, 0, 7, 2, 0, 7]], np.uint8)
         tg = np.array([[3, 3, 3, 1, 0, 1]], np.uint8)        # 3 = wall ROI, 1 = ceiling ROI, 0 = none
         # old 'roi' mode: wall-ROI occluder -> occluded; ceiling ROI -> not_target; outside-ROI wall / person -> unknown
-        self.assertEqual(state_target(st, vis, sem, tg, [3, 4], "roi").tolist(), [[0, 1, 2, 3, 255, 255]])
+        self.assertEqual(state_target(st, vis, sem, tg, it, wall, "roi").tolist(), [[0, 1, 2, 3, 255, 255]])
         # default 'full': any non-wall object outside the wall ROIs is not_target; a wall outside the ROIs stays unknown
-        self.assertEqual(state_target(st, vis, sem, tg, [3, 4]).tolist(), [[0, 1, 2, 3, 255, 3]])
+        self.assertEqual(state_target(st, vis, sem, tg, it, wall).tolist(), [[0, 1, 2, 3, 255, 3]])
 
     def test_all_decoders_run_and_write_outputs(self):
         from vision_preprocessing.train.train_quick import main
@@ -97,6 +115,88 @@ class TestTrainQuick(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
+    def test_vit_encoder_geo_aug_and_new_site_adaptation(self):
+        """DINOv2-style ViT encoder runs; geo augmentation + human-repeat; two-stage anchors + KL adaptation."""
+        from vision_preprocessing.train.train_quick import main
+        tmp = Path(tempfile.mkdtemp(prefix="vp_adapt_"))
+        try:
+            fake_export(tmp / "exp")
+            fake_export(tmp / "hold", n=10)
+            ids = [l for l in (tmp / "hold" / "splits" / "train.txt").read_text(encoding="utf-8").split("\n") if l]
+            (tmp / "hold_ids.txt").write_text("\n".join(f"{i}|W01" for i in ids[:6]), encoding="utf-8")
+            common = ["--export", str(tmp / "exp"), "--no-pretrained", "--decoder", "upernet", "--activity", "all",
+                      "--epochs", "1", "--batch", "2"]
+            hold = ["--holdout-export", str(tmp / "hold"), "--holdout-ids", "@" + str(tmp / "hold_ids.txt")]
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(main(common + ["--encoder", "vit_small_patch14_dinov2.lvd142m",
+                                                "--out", str(tmp / "vit")]), 0)
+                self.assertEqual(main(common + hold + ["--encoder", "convnext_atto", "--aug", "geo", "--human-repeat", "3",
+                                                       "--out", str(tmp / "base")]), 0)
+                self.assertEqual(main(common + hold + ["--encoder", "convnext_atto", "--init", str(tmp / "base" / "model_quick.pt"),
+                                                       "--holdout-anchors", "2", "--holdout-kl", "4", "--kl-weight", "1.0",
+                                                       "--out", str(tmp / "kl")]), 0)
+            vit = json.loads((tmp / "vit" / "metrics.json").read_text(encoding="utf-8"))
+            self.assertEqual(vit["encoder"], "vit_small_patch14_dinov2.lvd142m")
+            self.assertEqual(len(vit["state_classes"]), 6)
+            base = json.loads((tmp / "base" / "metrics.json").read_text(encoding="utf-8"))
+            self.assertEqual((base["aug"], base["human_repeat"]), ("geo", 3))
+            self.assertEqual(base["counts"]["holdout"], 6)
+            kl = json.loads((tmp / "kl" / "metrics.json").read_text(encoding="utf-8"))
+            self.assertEqual(len(kl["anchors"]), 2)
+            self.assertEqual(kl["kl_photos"], 4)
+            self.assertEqual(kl["counts"]["holdout"], 4)                    # anchors moved out of the hold-out test
+            self.assertEqual(kl["counts"]["train"], 8 + 2)
+            self.assertIn("state_miou_install", kl["holdout"])
+            self.assertIn("kl", (tmp / "kl" / "log.csv").read_text(encoding="utf-8").splitlines()[0])
+            # run records: config / split manifest before training, a checkpoint + val/hold-out record per epoch
+            b = tmp / "base"
+            cfg = json.loads((b / "config.json").read_text(encoding="utf-8"))
+            self.assertEqual(cfg["seed"], 0)
+            self.assertTrue(cfg["code_sha256"]["train_quick.py"])
+            man = json.loads((b / "split_manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(man["holdout"]["n"], 6)
+            self.assertEqual(man["train"]["n"], 8 * 3)                      # human-repeat counted, ids unique
+            self.assertEqual(man["train"]["n_unique"], 8)
+            self.assertTrue((b / "ckpt" / "epoch_01.pt").exists())
+            ev = [json.loads(l) for l in (b / "epoch_metrics.jsonl").read_text(encoding="utf-8").splitlines() if l]
+            self.assertEqual([e["epoch"] for e in ev], [1])
+            self.assertIn("photo_rows", ev[0]["holdout"])
+            self.assertNotIn("ratio_rows", ev[0]["val"])
+            head = (b / "log.csv").read_text(encoding="utf-8").splitlines()[0]
+            for col in ("holdout_mae_roi_model", "val_wall_mae_roi_model", "selected", "lr_start"):
+                self.assertIn(col, head)
+            self.assertTrue(base["holdout"]["photo_rows"])
+            self.assertEqual(len(base["holdout"]["state_confusion"]), 6)
+            # --epochs 0 --init = re-score a model on the hold-out minus the first k anchors (common subset)
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(main(common[:-4] + ["--epochs", "0", "--batch", "2"] + hold +
+                                      ["--encoder", "convnext_atto", "--init", str(b / "model_quick.pt"),
+                                       "--holdout-anchors", "2", "--out", str(tmp / "eval")]), 0)
+            ev0 = json.loads((tmp / "eval" / "metrics.json").read_text(encoding="utf-8"))
+            self.assertEqual(ev0["counts"]["holdout"], 4)
+            self.assertEqual(ev0["eval_only_of"], str(b / "model_quick.pt"))
+            self.assertFalse((tmp / "eval" / "model_quick.pt").exists())
+            # --anchor-repeat R: each anchor exactly R times per epoch (overrides --human-repeat for anchors)
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(main(common + hold + ["--encoder", "convnext_atto", "--init", str(b / "model_quick.pt"),
+                                                       "--holdout-anchors", "2", "--human-repeat", "3",
+                                                       "--anchor-repeat", "5", "--out", str(tmp / "rep")]), 0)
+            rep = json.loads((tmp / "rep" / "metrics.json").read_text(encoding="utf-8"))
+            self.assertEqual(rep["counts"]["train"], 8 * 3 + 2 * 5)
+            self.assertEqual(rep["anchor_repeat"], 5)
+            # --kl-until: KL photos only up to a date ('anchors' = last anchor date) -> fewer, none later than it
+            with contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(main(common + hold + ["--encoder", "convnext_atto", "--init", str(b / "model_quick.pt"),
+                                                       "--holdout-anchors", "2", "--holdout-kl", "4", "--kl-weight", "1.0",
+                                                       "--kl-until", "2025-02-17", "--out", str(tmp / "klu")]), 0)
+            klu = json.loads((tmp / "klu" / "metrics.json").read_text(encoding="utf-8"))
+            self.assertEqual(klu["kl_until"], "2025-02-17")
+            kl_ids = json.loads((tmp / "klu" / "split_manifest.json").read_text(encoding="utf-8"))["kl"]["ids"]
+            self.assertTrue(0 < len(kl_ids) < 4)
+            self.assertTrue(all(i.split("-")[1][:8] <= "20250217" for i in kl_ids))
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
     def test_infer_proposes_roi_and_writes_vision_output(self):
         from vision_preprocessing.train.train_quick import main as train
         from vision_preprocessing.train.infer_quick import main as infer
@@ -108,7 +208,7 @@ class TestTrainQuick(unittest.TestCase):
                                         "--epochs", "2", "--batch", "2", "--out", str(tmp / "m")]), 0)
                 args = ["--model", str(tmp / "m" / "model_quick.pt"), "--images", str(tmp / "exp" / "images"),
                         "--site-id", "SITE", "--view", "V01", "--no-pretrained", "--size", "160", "96",
-                        "--time-regex", r"-(?P<date>\d{8})T(?P<time>\d{6})"]
+                        r"--time-regex=-(?P<date>\d{8})T(?P<time>\d{6})"]     # '=' form: the value starts with '-' 
                 self.assertEqual(infer(args + ["--out", str(tmp / "auto")]), 0)
                 self.assertEqual(infer(args + ["--out", str(tmp / "auto")]), 0)            # second run reuses the ROI
                 self.assertEqual(infer(args + ["--out", str(tmp / "given"), "--roi-mask",

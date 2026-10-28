@@ -92,9 +92,11 @@ rem (3) 검수 창을 닫고(Ctrl+C) (1)의 두 번째 줄을 다시 실행 → 
     auto.py                전체 자동 실행·resume
     review_static\todo.html  할 일 화면
     cli.py, __main__.py    명령행
-    train\train_quick.py   학습: 동결 인코더 + 디코더(unet / upernet / linear) + 헤드 2개 (물체 8 · 상태 4)
+    train\train_quick.py   학습: 동결 인코더 + 디코더(unet / upernet / linear / mlp / dpt / probe) + 헤드 2개
+    train\decoders.py      ViT 전용 디코더: 경량 MLP(SegFormer식) · DPT · linear probe
     train\infer_quick.py   인퍼런스: 사진 → 상태 맵 → ROI(주어진 것 / 자동 제안) → 설치율 → vision_output.json
     train\infer_core.py    인퍼런스 후처리 (ROI 제안 · 설치율 · 날짜별 행 · 이벤트, torch 불필요)
+    train\loso\            현장 단위 교차검증(LOSO) 실험: 규격 · 분할 · 학습 · 추론 변형 · 시간축 보정 · 표/그림
     tests\                 합성 데이터 단위 테스트 (코드 동작 검증용)
     requirements_traceability.md
 ```
@@ -241,4 +243,19 @@ rem   승인된 ROI가 있으면: --roi-mask <export>\target_masks\<사진>.png 
 - 설치율 = ROI 안 설치 ÷ (설치 + 미설치). 보이는 비율이 0.3 미만이면 `held`(값 없음, 0으로 채우지 않음).
 - 결과: `vision_output.json`(에이전트 연동 형식 1.0), `photo_rows.jsonl`(사진별 값), `roi\`, `overlays\`(날짜별 첫 사진).
 - 구도 변경(카메라 이동) 감지는 아직 인퍼런스에 없습니다. 구도별로 나눠서 실행하세요.
+
+### LOSO 실험 (논문 본 실험, `train\loso\`)
+
+현장 하나씩 빼고 학습해 처음 보는 현장에서 평가합니다(leave-one-site-out). 인코더·디코더·학습 레시피·시드·분할 규칙은
+`train\loso\protocol.json`에 고정되어 있고, 실행하는 사람은 데이터 경로(local.json)만 적습니다.
+
+```bat
+python -m vision_preprocessing.train.loso check  --local <local.json>
+python -m vision_preprocessing.train.loso run    --local <local.json> --models upernet,linear
+python -m vision_preprocessing.train.loso status --local <local.json>
+python -m vision_preprocessing.train.loso report --results <결과 폴더> <팀원 결과.zip> --out <summary> --lang ko
+```
+
+- `train\loso\PROTOCOL.md`: 무엇을 고정했고 왜(사전 예상 포함). `train\loso\DATA_SETUP.md`: 데이터 배치·실행·결과 전달(Linux/Windows).
+- 분할 목록(사진 ID)은 개인 전달 번들에만 있고, 저장소에는 해시(`expected_digests.json`)만 있습니다.
 

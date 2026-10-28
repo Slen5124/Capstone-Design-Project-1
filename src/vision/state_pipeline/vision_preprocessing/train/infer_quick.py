@@ -44,7 +44,8 @@ def list_photos(paths, regex):
 
 def load_model(path, device, pretrained=True):
     ck = torch.load(path, map_location="cpu", weights_only=False)
-    model = TwoHeadSeg(ck["encoder"], ck["decoder"], pretrained=pretrained, freeze=True)
+    model = TwoHeadSeg(ck["encoder"], ck["decoder"], pretrained=pretrained, freeze=True, n_state=ck.get("n_state", 4),
+                       vit_pad_crop=ck.get("vit_pad_crop", False))   # checkpoints older than the fix stretched the grid
     missing, unexpected = model.load_state_dict(ck["state_dict"], strict=False)
     bad = [k for k in missing if not k.startswith("encoder.")] + list(unexpected)
     if bad:
@@ -52,14 +53,23 @@ def load_model(path, device, pretrained=True):
     return model.to(device).eval(), ck
 
 
-def predict(model, img: Image.Image, T, device):
+def predict(model, img: Image.Image, T, device, slot=None):
+    """State map 0 not_installed / 1 installed / 2 occluded / 3 not_target. For a unified (wall + ceiling) model `slot`
+    picks the surface: its two classes become 0/1, the other surface's classes become not_target."""
     x = np.asarray(apply_image(img.convert("RGB"), T), dtype=np.uint8)
     t = (torch.from_numpy(x).permute(2, 0, 1).float() / 255.0 - MEAN) / STD
     with torch.no_grad(), torch.autocast(device_type=device.type, enabled=device.type == "cuda"):
         _, ls = model(t[None].to(device))
     p = torch.softmax(ls.float(), 1)[0]
     conf, state = p.max(0)
-    return x, state.cpu().numpy().astype(np.uint8), conf.cpu().numpy()
+    state = state.cpu().numpy().astype(np.uint8)
+    n = p.shape[0]
+    if n > 4 and slot is not None:
+        occ, nt = n - 2, n - 1
+        m = np.full(n, 3, np.uint8)
+        m[2 * slot], m[2 * slot + 1], m[occ], m[nt] = 0, 1, 2, 3
+        state = m[state]
+    return x, state, conf.cpu().numpy()
 
 
 def overlay(x, state, roi, path):
@@ -99,6 +109,15 @@ def main(argv=None):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model, ck = load_model(args.model, device, pretrained=not args.no_pretrained)
     activity = args.activity or ck.get("activity", "wall_board_installation")
+    slot = None
+    if ck.get("n_state", 4) > 4:                     # unified wall + ceiling model: choose the surface to measure
+        acts = ["wall_board_installation", "ceiling_panel_installation"]
+        if activity == "all":
+            activity = acts[0]
+        if activity not in acts:
+            raise SystemExit(f"unified model knows {acts}; pass --activity one of them")
+        slot = acts.index(activity)
+        print(f"[infer] unified model, measuring {activity} (surface slot {slot})", flush=True)
     if ck.get("state_outside", "roi") != "full" and not args.roi_mask:
         print("[infer] warning: this model was trained with --state-outside roi; automatic ROI proposals will be poor. "
               "Pass --roi-mask or retrain with the default (full).", flush=True)
@@ -118,7 +137,7 @@ def main(argv=None):
             t, f = photos[i]
             img = Image.open(f)
             T = make_transform(img.size, size, "letterbox")
-            cache[i] = predict(model, img, T, device)
+            cache[i] = predict(model, img, T, device, slot)
         return cache[i]
 
     # ---- ROI

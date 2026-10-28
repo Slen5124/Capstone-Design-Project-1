@@ -1,0 +1,73 @@
+{
+ "protocol_version": "loso-v1",
+ "note": "Fixed BEFORE any run (see PROTOCOL.md). Changing a value = a new protocol version; results of different versions are never mixed.",
+ "encoder": "vit_base_patch14_reg4_dinov2.lvd142m",
+ "encoder_license": "apache-2.0 (DINOv2 with registers, Darcet et al. ICLR 2024)",
+ "models": ["mlp", "upernet", "dpt", "linear"],
+ "decoder_of": {"linear": "probe"},
+ "run_last": ["linear"],
+ "seeds": [0, 1, 2],
+ "seeds_override": {"linear": [0]},
+ "folds": ["SITE_A", "SITE_B", "SITE_C", "SITE_D"],
+ "macro_folds": ["SITE_A", "SITE_B", "SITE_C"],
+ "case_folds": ["SITE_D"],
+ "ceiling_folds": ["SITE_B", "SITE_C"],
+ "sites": {
+  "SITE_A": {"exports": ["human", "propagated"], "human_source": "export", "val_site": true},
+  "SITE_B": {"exports": ["full"], "human_source": "id_list", "val_site": false},
+  "SITE_C": {"exports": ["human"], "human_source": "export", "val_site": true},
+  "SITE_D": {"exports": ["full"], "human_source": "id_list", "val_site": false}
+ },
+ "split": {
+  "test_one_per_date": ["SITE_A"],
+  "subsample_seed": 0,
+  "val_block_days": 7,
+  "val_every_blocks": 5,
+  "val_seed": 0,
+  "buffer_days": 1,
+  "weak_every": 3,
+  "weak_cap_total": null
+ },
+ "train": {
+  "activity": "all",
+  "epochs": 15,
+  "batch": 4,
+  "lr": 0.001,
+  "weight_decay": 0.0001,
+  "pct_start": 0.1,
+  "sem_weight": 0.5,
+  "class_weights": true,
+  "human_repeat": 3,
+  "propagated_weight": 0.5,
+  "weak_weight": 0.3,
+  "aug": "geo",
+  "copy_paste": 0.5,
+  "state_outside": "full",
+  "select": "last",
+  "eval_every": 1,
+  "log_every_steps": 50,
+  "num_workers": 4,
+  "amp": true
+ },
+ "posteval": {
+  "variants": ["base", "flip", "ms", "ms_roizoom"],
+  "tta_scales": [1.0, 1.25, 1.5],
+  "roi_zoom_max_frac": 0.03,
+  "roi_zoom_margin": 0.25
+ },
+ "temporal": {
+  "variants": ["raw", "causal", "causal_view", "causal_view_w", "causal_view_w_reset"],
+  "reset_drop": 0.2,
+  "reset_days": 2
+ },
+ "metrics": {
+  "primary": "wall roi MAE over date x wall rows",
+  "min_pixels": 500,
+  "completion_threshold": 0.9,
+  "tolerances": [0.05, 0.10],
+  "size_bins": [0.01, 0.05],
+  "bootstrap_B": 10000,
+  "bootstrap_seed": 0
+ },
+ "environment": {"python": "3.9", "torch": "2.6.0", "timm": "1.0.30", "numpy": "1.26.4", "min_gpu_gb": 7.5, "min_free_disk_gb": 5}
+}

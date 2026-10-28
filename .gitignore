@@ -138,3 +138,9 @@ data_audit.json
 events.out.tfevents.*
 wandb/
 mlruns/
+
+# LOSO experiment: private config, bundle and results (photo ids contain real site names)
+local*.json
+prepare_config*.json
+loso_bundle*/
+loso_results*/
