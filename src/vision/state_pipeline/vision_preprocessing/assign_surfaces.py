@@ -138,6 +138,14 @@ def register_roi(reader: SourceReader, ref_image: dict, image: dict, roi_payload
             "max_vertex_shift_px": round(shift, 2), "visibility_not_verified": True}
 
 
+def _ts(t: str) -> float:
+    from datetime import datetime
+    try:
+        return datetime.strptime(t[:19], "%Y-%m-%dT%H:%M:%S").timestamp()
+    except ValueError:
+        return 0.0
+
+
 ASSIGN_CODE = ("assign_surfaces.py", "schemas.py", "legacy.py", "index_views.py", "source_adapter.py",
                "qa_v2/registration.py", "qa_v3/dataset_io.py")
 
@@ -147,9 +155,12 @@ def open_observation_cache(ctx: RunContext) -> ItemCache:
 
 
 def build_observations(ctx: RunContext, images: list[dict] | None = None, limit: int = 0,
-                       cache: ItemCache | None = None, quiet: bool = False) -> dict:
+                       cache: ItemCache | None = None, quiet: bool = False, all_images: list[dict] | None = None,
+                       reader=None) -> dict:
     """Compute observation drafts. Pass ``cache`` (open_observation_cache) to reuse one in-memory cache
-    across many small calls (review server); otherwise the cache file is opened, updated and compacted."""
+    across many small calls (review server); otherwise the cache file is opened, updated and compacted.
+    ``reader``: a caller-owned photo reader (kept open between calls; the review server passes one that serves
+    photos from its display cache) - otherwise a SourceReader is opened and closed here."""
     store = ctx.store()
     site, tax = ctx.site, ctx.taxonomy
     acfg = dict({"link_min_shape_fraction": 0.8, "cross_target_min_fraction": 0.05, "min_shape_area_px": 25,
@@ -161,17 +172,26 @@ def build_observations(ctx: RunContext, images: list[dict] | None = None, limit:
     images = [im for im in images if im.get("duplicate_of") is None]
     if limit:
         images = images[:limit]
-    by_id = {im["image_id"]: im for im in load_images(ctx, include_held=True)}
+    # all_images: the caller's already loaded ingest list (review server) - avoids re-reading images.jsonl per call
+    by_id = {im["image_id"]: im for im in (all_images if all_images is not None else load_images(ctx, include_held=True))}
     views = store_views(store)
     targets = [r for r in store.latest("target") if r["payload"].get("identity_status") != "retired"]
     rois = {r["key"]: r for r in store.latest("roi")}
+    from .target_registry import measured_targets, roi_skips
+    # cross-view ROI registration (a draft ROI projected from another view's ROI) is only attempted for targets that are
+    # measured and not marked "not visible" in this view: a not_applicable floor or a wall hidden in this view used to
+    # cost dozens of full-resolution registrations per photo (the main reason a photo refresh took seconds)
+    acfg["_measured"] = measured_targets(store)
+    acfg["_skips"] = roi_skips(store)
+    acfg["_view_start"] = {v["view_id"]: v.get("start_time") or "" for v in views}
     surface_labels = {s: {norm_label(l) for l in d["object_labels"]} for s, d in tax["surface_types"].items()}
     occluders = {norm_label(l) for l in tax.get("occluder_labels", {}).get("labels", [])}
     stage = ctx.stage_dir("assign")
     own_cache = cache is None
     cache = cache if cache is not None else open_observation_cache(ctx)
     fp_cfg = ctx.config_fingerprint("assign", "quality", code=ASSIGN_CODE)
-    reader = SourceReader(ctx)
+    own_reader = reader is None
+    reader = reader if reader is not None else SourceReader(ctx)
     progress = Progress(ctx if not quiet else None, "assign", len(images), "images", every=50 if quiet else 10)
     if quiet:
         progress.report = lambda final=False: None  # type: ignore[assignment]
@@ -182,7 +202,9 @@ def build_observations(ctx: RunContext, images: list[dict] | None = None, limit:
             fp_inputs = [fp_cfg, image["source_photo"]["sha256"], (image["annotation"] or {}).get("sha256"), vinfo,
                          sorted((k, r["version"], r["content_hash"]) for k, r in rois.items()),
                          sorted((t["key"], t["version"]) for t in targets),
-                         sorted((r["key"], r["version"]) for r in store.latest("observation", image["image_id"] + "|"))]
+                         sorted((r["key"], r["version"]) for r in store.latest("observation", image["image_id"] + "|")),
+                         sorted(t["key"] for t in targets if t["key"] not in acfg["_measured"]),
+                         sorted(t["key"] for t in targets if roi_key(t["key"], vinfo["view_id"] or "") in acfg["_skips"])]
             fp = content_hash(fp_inputs)
             if all(cache.get(obs_key(image["image_id"], t["key"]), fp) is not None for t in targets) and targets:
                 progress.tick("skipped_cached")
@@ -202,7 +224,8 @@ def build_observations(ctx: RunContext, images: list[dict] | None = None, limit:
         if own_cache:
             cache.close()
             cache.maybe_compact()
-        reader.close()
+        if own_reader:
+            reader.close()
     counts = progress.finish()
     report = {"images": counts, "observations_by_status": dict(summary), "targets": [t["key"] for t in targets],
               "views": [v["view_id"] for v in views], "meaning": "automatic drafts; no approvals implied"}
@@ -249,8 +272,15 @@ def _observe_image(image, vinfo, targets, rois, store, by_id, reader, acfg, qcfg
                         o.update(status="held_roi_shift_detected", reasons=[f"shift_px={shift:.1f}"])
             if vinfo.get("view_review") != "approved":
                 o["reasons"].append("view_not_approved")
-        elif acfg["register_cross_view"]:
+        elif acfg["register_cross_view"] and tid in acfg.get("_measured", {tid}) \
+                and roi_key(tid, vinfo["view_id"] or "") not in acfg.get("_skips", ()):
             others = [r for k, r in rois.items() if k.startswith(tid + "|")]
+            if len(others) > 2 and acfg.get("_view_start"):
+                # the views nearest in time (the camera usually moves a little between neighbouring views)
+                vs = acfg["_view_start"]
+                t0 = vs.get(vinfo["view_id"] or "", "")
+                others.sort(key=lambda r: abs(_ts(vs.get(r["key"].split("|")[1], "")) - _ts(t0)))
+                others = others[:2]
             if others:
                 attempts = []
                 for other in others:

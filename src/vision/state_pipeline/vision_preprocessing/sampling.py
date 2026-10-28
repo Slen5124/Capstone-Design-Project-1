@@ -66,12 +66,14 @@ def select_samples(ctx: RunContext, images: list[dict]) -> dict:
                     if sc == sc:  # not NaN
                         outlier[iid] = max(outlier.get(iid) or 0.0, sc)
     labeled = {r["key"].split("|")[0] for r in store.latest("state_label")}
+    from .index_views import excluded_views
+    excl = excluded_views(store)
     per_day = defaultdict(list)
     for im in images:
         if im["status"] != "ok" or im.get("duplicate_of"):
             continue
         v = assign_view(im, views)
-        if not v["view_id"]:
+        if not v["view_id"] or v["view_id"] in excl:
             continue
         per_day[(v["view_id"], im["capture"]["time_local"][:10])].append(im)
     samples, messy_pool = [], []

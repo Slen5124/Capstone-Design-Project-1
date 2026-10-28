@@ -28,10 +28,51 @@ from .source_adapter import SourceIntegrityError, SourceReader, load_images
 from .state_annotations import (LabelError, eligibility, propagate_label_draft, save_label,
                                 save_manual_observation)
 from .store import StoreError
-from .target_registry import (RegistryError, compatible_activities, roi_hints, save_applicability, save_roi,
-                              save_target)
+from .target_registry import (RegistryError, compatible_activities, roi_conflicts, roi_hints, save_applicability,
+                              save_roi, save_target)
 
 STATIC = Path(__file__).resolve().parent / "review_static"
+
+
+class CachedPhotoReader:
+    """SourceReader for the observation refresh: photos come from the review display cache (cache/display/<id>_1600.jpg,
+    written by `prewarm` or an earlier open) when present, so refreshing a photo's observation does not decrypt it from
+    the ZIP again; the ZIP handles stay open between calls (opening a big ZIP per photo was most of the ~1 s)."""
+
+    def __init__(self, ctx, cache_dir: Path):
+        self.inner = SourceReader(ctx)
+        self.cache_dir = cache_dir
+
+    def rgb(self, image: dict, max_side: int | None = None, verify: bool = True):
+        big = self.cache_dir / f"{image['image_id']}_1600.jpg"
+        if big.exists():
+            try:
+                with Image.open(big) as src:
+                    im = src.convert("RGB")
+                if max_side and max(im.size) > max_side:
+                    im.thumbnail((max_side, max_side), Image.BILINEAR)
+                elif not max_side or max_side > 1600:
+                    # full resolution asked (ROI registration, which itself works at 1000 px): upscale the cached photo
+                    # so the pixel coordinates match the original; no ZIP read, no password prompt from this thread
+                    im = im.resize(tuple(image["size"]), Image.BILINEAR)
+                return im, im.width / image["size"][0]
+            except OSError:
+                pass                                   # truncated cache file: fall back to the ZIP
+        return self.inner.rgb(image, max_side, verify)
+
+    def annotation(self, image: dict, verify: bool = True) -> dict:
+        return self.inner.annotation(image, verify)
+
+    def close(self):
+        self.inner.close()
+
+
+class StaleVersion(StoreError):
+    """Approval of a version that is no longer current; carries the current record so the UI can offer it."""
+
+    def __init__(self, message, current):
+        super().__init__(message)
+        self.current = current
 
 
 class ReviewService:
@@ -42,13 +83,22 @@ class ReviewService:
         self.images = load_images(ctx, include_held=True)
         self.by_id = {im["image_id"]: im for im in self.images}
         self.reader = SourceReader(ctx)
-        self.lock = threading.RLock()
+        self.lock = threading.RLock()          # observations / background refresh
+        self.read_lock = threading.RLock()     # the shared ZIP reader (photos, SAM3 JSON) - not thread-safe
         self.cache_dir = ctx.run_dir / "cache" / "display"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self._obs = None
         self.obs_cache = open_observation_cache(ctx)  # one in-memory cache for the server's lifetime
         self.hints = roi_hints(ctx, {im["source_photo"]["entry"]: im for im in self.images})
         self.bg = {"running": False}
+        self._bg_queue: list[str] = []          # image ids waiting for a background observation refresh
+        self._bg_cv = threading.Condition()
+        self._bg_thread = None
+        self._obs_gen = 0                       # bumps whenever observations change (list cache key)
+        self._list_cache = (None, None)         # (store change token, rows)
+        self._list_bytes = (None, None)         # ((token, obs_gen), encoded JSON)
+        self._dirty_rows: set = set()           # photos whose observation changed since the list was built
+        self.obs_reader = CachedPhotoReader(ctx, self.cache_dir)   # used only under self.lock
         self.samples = {s["image_id"]: s for s in read_jsonl(ctx.run_dir / "stages" / "samples" / "samples.jsonl")}
 
     # ---------------------------------------------------------- helpers
@@ -84,7 +134,16 @@ class ReviewService:
         path = self.cache_dir / f"{image_id}_{max_side}.jpg"
         if path.exists():
             return path.read_bytes()
-        with self.lock:
+        big = self.cache_dir / f"{image_id}_1600.jpg"      # written by 'prewarm' or an earlier open: no ZIP read
+        if max_side < 1600 and big.exists():
+            with Image.open(big) as src:
+                rgb = src.convert("RGB")
+            rgb.thumbnail((max_side, max_side), Image.BILINEAR)
+            buf = io.BytesIO()
+            rgb.save(buf, "JPEG", quality=88)
+            path.write_bytes(buf.getvalue())
+            return buf.getvalue()
+        with self.read_lock:
             rgb, _ = self.reader.rgb(im, max_side)
         buf = io.BytesIO()
         rgb.save(buf, "JPEG", quality=88)
@@ -96,7 +155,7 @@ class ReviewService:
         path = self.cache_dir / f"{image_id}_shapes.json"
         if path.exists():
             return json.loads(path.read_text(encoding="utf-8"))
-        with self.lock:
+        with self.read_lock:
             doc = self.reader.annotation(im)
         out = {}
         for s in load_shapes(doc, im["size"]):
@@ -142,7 +201,37 @@ class ReviewService:
                 "timezone_confirmed": bool(self.ctx.site["capture_time"].get("timezone_confirmed")),
                 "store_counts": self.store.counts(), "background_refresh": self.bg}
 
+    def image_list_bytes(self) -> bytes:
+        """The photo list as encoded JSON; re-encoded only when the store or an observation changed."""
+        key = (self.store.change_token(), self._obs_gen)
+        if self._list_bytes[0] != key:
+            self._list_bytes = (key, json.dumps(self.image_list(), ensure_ascii=False, default=str).encode("utf-8"))
+        return self._list_bytes[1]
+
     def image_list(self) -> list[dict]:
+        token = self.store.change_token()
+        rows = self._list_cache[1]
+        if self._list_cache[0] == token and rows is not None:
+            # only observations changed (background refresh): rebuild just those photos' rows
+            with self.lock:
+                dirty, self._dirty_rows = self._dirty_rows, set()
+            if dirty:
+                ctx = self._list_ctx()
+                pos = {r["image_id"]: i for i, r in enumerate(rows)}
+                rows = list(rows)
+                for im in self.images:
+                    if im["image_id"] in dirty and im["image_id"] in pos:
+                        rows[pos[im["image_id"]]] = self._row(im, ctx)
+                self._list_cache = (token, rows)
+            return rows
+        ctx = self._list_ctx()
+        rows = [self._row(im, ctx) for im in self.images]
+        with self.lock:
+            self._dirty_rows = set()
+        self._list_cache = (token, rows)
+        return rows
+
+    def _list_ctx(self) -> dict:
         views = store_views(self.store)
         labels, label_status = {}, {}
         states = self.store.review_states("state_label")
@@ -152,40 +241,40 @@ class ReviewService:
             labels.setdefault(iid, []).append(st)
             label_status.setdefault(iid, {})[f"{tid}|{act}"] = {"status": st, "source": r["source"],
                                                                "basis": r["payload"].get("draft_basis")}
-        rois = {r["key"]: r["version"] for r in self.store.latest("roi")}
-        roi_refs = {r["payload"]["reference_image_id"] for r in self.store.latest("roi")}
-        obs_all = self.obs()
-        targets = [r["key"] for r in self.store.latest("target")]
-        out = []
-        for im in self.images:
-            v = assign_view(im, views)
-            obs = {}
-            skip = im["status"] != "ok" or im.get("duplicate_of")
-            for tid in targets:
-                if skip:
-                    obs[tid] = {"status": "held" if im["status"] != "ok" else "duplicate", "stale": False}
-                    continue
-                o = obs_all.get(obs_key(im["image_id"], tid))
-                cur = rois.get(roi_key(tid, v["view_id"])) if v["view_id"] else None
-                if o is None:
-                    obs[tid] = {"status": "missing", "stale": cur is not None}
-                    continue
-                ref = o.get("roi_ref") or {}
-                stale = cur is not None and (ref.get("kind") != "roi" or ref.get("version") != cur) and o.get("roi_source") != "manual"
-                obs[tid] = {"status": o.get("status"), "roi_source": o.get("roi_source"), "stale": stale,
-                            "occl": (o.get("coverage") or {}).get("occluder_labels"),
-                            "flags": (o.get("quality") or {}).get("flags", [])}
-            out.append({"image_id": im["image_id"], "time": im["capture"]["time_local"], "status": im["status"],
-                        "capture_status": im["capture"]["status"], "view_id": v["view_id"], "view_status": v["status"],
-                        "duplicate_of": im.get("duplicate_of"), "labels": labels.get(im["image_id"], []),
-                        "label_status": label_status.get(im["image_id"], {}), "obs": obs,
-                        "is_view_reference": any(vv.get("reference_image_id") == im["image_id"] for vv in views),
-                        "is_roi_reference": im["image_id"] in roi_refs,
-                        "checks": [c["code"] for c in im["checks"]],
-                        "sample": ({k: self.samples[im["image_id"]].get(k) for k in ("kind", "phase", "light")}
-                                   if im["image_id"] in self.samples else None),
-                        "qa_v3": (im["annotation"] or {}).get("qa_v3_classification")})
-        return out
+        return {"views": views, "labels": labels, "label_status": label_status,
+                "rois": {r["key"]: r["version"] for r in self.store.latest("roi")},
+                "roi_refs": {r["payload"]["reference_image_id"] for r in self.store.latest("roi")},
+                "obs_all": self.obs(), "targets": [r["key"] for r in self.store.latest("target")]}
+
+    def _row(self, im: dict, c: dict) -> dict:
+        views, rois, obs_all = c["views"], c["rois"], c["obs_all"]
+        v = assign_view(im, views)
+        obs = {}
+        skip = im["status"] != "ok" or im.get("duplicate_of")
+        for tid in c["targets"]:
+            if skip:
+                obs[tid] = {"status": "held" if im["status"] != "ok" else "duplicate", "stale": False}
+                continue
+            o = obs_all.get(obs_key(im["image_id"], tid))
+            cur = rois.get(roi_key(tid, v["view_id"])) if v["view_id"] else None
+            if o is None:
+                obs[tid] = {"status": "missing", "stale": cur is not None}
+                continue
+            ref = o.get("roi_ref") or {}
+            stale = cur is not None and (ref.get("kind") != "roi" or ref.get("version") != cur) and o.get("roi_source") != "manual"
+            obs[tid] = {"status": o.get("status"), "roi_source": o.get("roi_source"), "stale": stale,
+                        "occl": (o.get("coverage") or {}).get("occluder_labels"),
+                        "flags": (o.get("quality") or {}).get("flags", [])}
+        return {"image_id": im["image_id"], "time": im["capture"]["time_local"], "status": im["status"],
+                "capture_status": im["capture"]["status"], "view_id": v["view_id"], "view_status": v["status"],
+                "duplicate_of": im.get("duplicate_of"), "labels": c["labels"].get(im["image_id"], []),
+                "label_status": c["label_status"].get(im["image_id"], {}), "obs": obs,
+                "is_view_reference": any(vv.get("reference_image_id") == im["image_id"] for vv in views),
+                "is_roi_reference": im["image_id"] in c["roi_refs"],
+                "checks": [c_["code"] for c_ in im["checks"]],
+                "sample": ({k: self.samples[im["image_id"]].get(k) for k in ("kind", "phase", "light")}
+                           if im["image_id"] in self.samples else None),
+                "qa_v3": (im["annotation"] or {}).get("qa_v3_classification")}
 
     def same_as_previous(self, body: dict, author: str) -> dict:
         """For photos the reviewer has looked at in the grid and judged unchanged: copy the most recent
@@ -199,8 +288,7 @@ class ReviewService:
         ims = sorted([self.image(i) for i in body.get("image_ids", [])],
                      key=lambda im: im["capture"]["time_local"] or "")
         ims = [im for im in ims if im["status"] == "ok"]
-        if ims:
-            self._reassign(ims)
+        self._reassign_stale(ims)
         targets = body.get("targets") or []
         approved_by_key = {}
         for rec in self.store.latest("state_label"):
@@ -260,9 +348,7 @@ class ReviewService:
         if state not in ("installed", "not_installed"):
             raise LabelError("state must be installed or not_installed")
         ims = [self.image(i) for i in body.get("image_ids", [])]
-        stale = [im for im in ims if im["status"] == "ok"]
-        if stale:
-            self._reassign(stale)  # make sure every observation uses the current ROI version
+        self._reassign_stale(ims)  # only photos whose observation is out of date (each one ~1 s under the lock)
         created, skipped = [], []
         for im in ims:
             key = label_key(im["image_id"], tid, act)
@@ -297,6 +383,9 @@ class ReviewService:
                 ref = (o or {}).get("roi_ref") or {}
                 if o is None or (cur is not None and o.get("roi_source") != "manual"
                                  and (ref.get("kind") != "roi" or ref.get("version") != cur)):
+                    with self._bg_cv:
+                        if image_id in self._bg_queue:
+                            self._bg_queue.remove(image_id)
                     with self.lock:
                         self._reassign([im])  # opened photo: bring its observation up to date (about a second)
                     break
@@ -321,7 +410,8 @@ class ReviewService:
                             links=[{"shape_index": l["shape_index"], "label": l.get("label")} for l in (auto.get("links") or [])])
             targets[tid] = {"auto": auto, "auto_stale": stale, "roi": roi,
                             "manual_obs": self._rec("observation", obs_key(image_id, tid)), "activities": acts}
-        return {"image": im, "view": v, "view_record": self._rec("view", v["view_id"]) if v["view_id"] else None,
+        vrec = self._rec("view", v["view_id"]) if v["view_id"] else None
+        return {"image": im, "view": v, "view_record": vrec, "align": self.align_of(image_id, vrec),
                 "targets": targets, "hints": [h for h in self.hints if h.get("image_id") == image_id],
                 "all_hints": [{k: h[k] for k in ("hint_id", "image_id", "meaning")} for h in self.hints]}
 
@@ -330,36 +420,99 @@ class ReviewService:
         author = (body.get("author") or "").strip()
         if not author:
             raise StoreError("enter your reviewer name first")
+        # store-only actions: no need to wait for the photo lock (background refresh / ZIP reads)
+        if path == "/api/decide":
+            try:
+                return self.store.decide(body["kind"], body["key"], int(body["version"]), author,
+                                         body.get("decision", "approved"), body.get("note"))
+            except StoreError as error:
+                cur = self.store.get(body["kind"], body["key"]) if "not current" in str(error) else None
+                if cur is None:
+                    raise
+                raise StaleVersion(str(error), {"version": cur["version"], "author": cur["author"],
+                                                "created_at": cur["created_at"]}) from error
+        if path == "/api/target":
+            return save_target(self.store, body["payload"], author)
+        if path == "/api/applicability":
+            return save_applicability(self.store, body["target_id"], body["activity_id"], body["applicability"],
+                                      body.get("basis", ""), author, self.tax)
+        if path == "/api/view_exclusion":
+            vid = body["view_id"]
+            if self.store.get("view", vid) is None:
+                raise RegistryError("unknown view")
+            ex = bool(body.get("exclude", True))
+            return self.store.put("view_exclusion", vid, {"view_id": vid, "exclude_from_training": ex,
+                                                          "reason": body.get("reason") or "reviewer_decision",
+                                                          "note": body.get("note")}, source="manual", author=author)
+        if path == "/api/drift_ack":
+            vid, day = body["view_id"], body["day"]
+            return self.store.put("drift_ack", f"{vid}|{day}", {"view_id": vid, "day": day, "accepted": bool(body.get("accepted", True)),
+                                                                 "note": body.get("note") or "ROI still fits"},
+                                  source="manual", author=author)
+        if path == "/api/todo_ack":
+            key = str(body["key"])
+            if key.split("|", 1)[0] not in ("roi_audit", "roi_conflicts", "unassigned", "view_misaligned", "label_consistency"):
+                raise RegistryError("unknown to-do item")
+            payload = {"key": key, "accepted": bool(body.get("accepted", True)),
+                       "note": body.get("note") or "checked on the to-do page, left as is"}
+            if body.get("image_ids"):
+                payload["image_ids"] = [str(i) for i in body["image_ids"]][:5000]
+            return self.store.put("todo_ack", key, payload, source="manual", author=author)
+        if path == "/api/roi_copy":
+            return self.roi_copy(body, author)       # store writes only; photos refresh in the background
+        if path == "/api/roi":
+            # saving the ROI is a single store write - answer at once; the reference photo is refreshed first in the
+            # background, then every other photo of the view (no waiting for ZIP reads / registration here)
+            view = self.store.get("view", body["view_id"])
+            if view is None:
+                raise RegistryError("unknown view")
+            ref = self.image(view["payload"]["reference_image_id"])
+            # the ROI may be drawn on ANY photo of this view (same camera position = same pixel coordinates); it is
+            # always stored against the view's reference photo
+            if body.get("image_id") != ref["image_id"]:
+                drawn = self.by_id.get(body.get("image_id"))
+                if drawn is None or assign_view(drawn, store_views(self.store))["view_id"] != body["view_id"]:
+                    raise RegistryError(f"이 사진은 {body['view_id']} 구도에 속하지 않아 그 구도의 ROI로 저장할 수 없습니다")
+                if tuple(drawn["size"]) != tuple(ref["size"]):
+                    raise RegistryError("사진 크기가 기준 사진과 달라 ROI를 옮길 수 없습니다. 기준 사진에서 그리세요")
+            if not body.get("allow_overlap"):
+                bad = [c for c in roi_conflicts(self.store, body["view_id"], body["target_id"], body["polygons"],
+                                                body.get("exclusions", []), min_overlap=0.5)]
+                if bad:
+                    raise RegistryError("; ".join(
+                        (f"이 ROI의 폴리곤 하나가 {c['target_id']}의 ROI와 똑같습니다 (이전 벽 폴리곤이 초안에 남음) - 지우고 저장하세요"
+                         if c["polygon_copied_from_it"] else
+                         f"{c['target_id']} ROI와 {c['overlap_of_smaller']:.0%} 겹칩니다 - 경계를 확인하세요") for c in bad))
+            result = save_roi(self.store, target_id=body["target_id"], view_id=body["view_id"], reference_image=ref,
+                              polygons=body["polygons"], exclusions=body.get("exclusions", []), author=author,
+                              note=body.get("note"))
+            if result.get("changed", True):
+                self.refresh_view_async(body["view_id"], first=[ref["image_id"]])
+            return dict(result, background_refresh=self.bg,
+                        record=self._rec("roi", roi_key(body["target_id"], body["view_id"])))
+        if path == "/api/view_fix":
+            return self.view_fix(body, author)
+        # label saves only touch the store; the photo lock is taken only if this photo's observation must be rebuilt
+        if path == "/api/label":
+            im = self.image(body["image_id"])
+            if im.get("duplicate_of"):
+                raise LabelError(f"중복 사진입니다 (같은 사진: {im['duplicate_of']}). 원본 사진에 라벨을 그리세요 (duplicate photo)")
+            auto = self.fresh_obs(im, body["target_id"])
+            if not auto or auto.get("status") != "ok" or not auto.get("roi_ref"):
+                v = assign_view(im, store_views(self.store))["view_id"]
+                why = (f"이 사진은 어느 구도에도 속하지 않습니다" if not v else
+                       f"{body['target_id']}|{v} ROI가 없거나 이 사진에 맞출 수 없습니다 (상태: {(auto or {}).get('status', 'missing')})")
+                raise LabelError(f"라벨을 저장할 수 없습니다: {why}. 기준 사진에서 ROI를 그리고 승인하거나, 이 벽이 안 보이면 다른 대상을 고르세요.")
+            cur = self.store.get(auto["roi_ref"]["kind"], auto["roi_ref"]["key"])
+            if cur is None or cur["version"] != auto["roi_ref"]["version"]:
+                raise LabelError("ROI가 방금 바뀌었습니다. 사진을 다시 열고 저장해 주세요 (observation is stale)")
+            payload = {k: body.get(k) for k in ("target_id", "activity_id", "regions", "fill_roi_state",
+                                                   "undeterminable", "occluded", "whole_target_undeterminable", "note")}
+            payload["roi_ref"] = auto["roi_ref"]
+            payload["roi_source"] = auto["roi_source"]
+            return save_label(self.store, self.tax, im, payload, author=author, source="manual",
+                              view_id=auto.get("view_id"))
         with self.lock:
-            if path == "/api/roi":
-                view = self.store.get("view", body["view_id"])
-                if view is None:
-                    raise RegistryError("unknown view")
-                ref = self.image(view["payload"]["reference_image_id"])
-                if body.get("image_id") != ref["image_id"]:
-                    raise RegistryError("ROI must be drawn on the view's reference image")
-                result = save_roi(self.store, target_id=body["target_id"], view_id=body["view_id"], reference_image=ref,
-                                  polygons=body["polygons"], exclusions=body.get("exclusions", []), author=author,
-                                  note=body.get("note"))
-                self._reassign([ref])
-                self.refresh_view_async(body["view_id"])  # every photo of the view follows the new ROI
-                return dict(result, background_refresh=self.bg)
-            if path == "/api/roi_copy":
-                return self.roi_copy(body, author)
-            if path == "/api/label":
-                im = self.image(body["image_id"])
-                auto = self.obs().get(obs_key(im["image_id"], body["target_id"]))
-                if not auto or auto.get("status") != "ok" or not auto.get("roi_ref"):
-                    raise LabelError("no usable ROI for this image/target (rerun assign or draw/confirm ROI first)")
-                cur = self.store.get(auto["roi_ref"]["kind"], auto["roi_ref"]["key"])
-                if cur is None or cur["version"] != auto["roi_ref"]["version"]:
-                    raise LabelError("observation is stale; press 'Refresh observation' first")
-                payload = {k: body.get(k) for k in ("target_id", "activity_id", "regions", "fill_roi_state",
-                                                       "undeterminable", "occluded", "whole_target_undeterminable", "note")}
-                payload["roi_ref"] = auto["roi_ref"]
-                payload["roi_source"] = auto["roi_source"]
-                return save_label(self.store, self.tax, im, payload, author=author, source="manual",
-                                  view_id=auto.get("view_id"))
             if path == "/api/observation":
                 im = self.image(body["image_id"])
                 payload = {k: body.get(k) for k in ("roi", "note", "quality_flags", "confirmed_from")}
@@ -385,6 +538,7 @@ class ReviewService:
                 payload["classification_source"] = "manual"
                 result = self.store.put("view", p["view_id"], payload, source="manual", author=author)
                 self._obs = None
+                self.queue_stale()                 # photos that moved into / out of this view get their ROI
                 return result
             if path == "/api/roi_skip":
                 tid, vid = body["target_id"], body["view_id"]
@@ -415,17 +569,257 @@ class ReviewService:
                 return self.rebase_labels(body, author)
             if path == "/api/propagate":
                 src, dst = self.image(body["src_image_id"]), self.image(body["dst_image_id"])
-                dst_obs = self.obs().get(obs_key(dst["image_id"], body["target_id"]))
-                if not dst_obs:
-                    raise LabelError("destination has no observation")
+                dst_obs = self.fresh_obs(dst, body["target_id"])
+                if not dst_obs or dst_obs.get("status") != "ok":
+                    raise LabelError(f"이 사진에는 {body['target_id']} ROI가 없어 복사할 수 없습니다 (destination has no usable ROI)")
                 return propagate_label_draft(self.store, self.tax, src, dst, dst_obs, body["target_id"],
                                              body["activity_id"], author)
         raise KeyError(path)
 
-    def _reassign(self, images):
-        build_observations(self.ctx, images=[im for im in images if im["status"] == "ok"], cache=self.obs_cache,
-                           quiet=True)
+    # -- camera-position fixes proposed by the `align` stage (view_align.py); applied only on a button press --
+    def view_fix(self, body: dict, author: str) -> dict:
+        from .target_registry import save_roi
+        from .view_align import Matcher, config, map_rois, warp_payload
+        rep = self.ctx.run_dir / "stages" / "view_align" / "align_report.json"
+        segs = json.loads(rep.read_text(encoding="utf-8"))["segments"] if rep.exists() else []
+        vid, action = body["view_id"], body["action"]
+        seg = next((x for x in segs if x["view_id"] == vid and x["from"] == body["from"] and x["to"] == body["to"]), None)
+        if seg is None:
+            raise RegistryError("이 항목을 찾을 수 없습니다. auto(align)를 다시 돌린 뒤 할 일 화면을 새로 고치세요")
+        cur = self.store.get("view", vid)
+        if cur is None or cur["version"] != seg["view_version"]:
+            raise RegistryError(f"{vid} 구도가 그 사이에 바뀌었습니다. auto(align)를 다시 돌리면 새로 계산됩니다")
+        note = body.get("note") or f"camera-position fix '{action}' from the to-do page (align stage), {seg['from']} ~ {seg['to']}"
+        views = store_views(self.store)
+        ims = sorted([im for im in self.images if im["status"] == "ok" and not im.get("duplicate_of")
+                      and im["capture"]["time_local"] and assign_view(im, views)["view_id"] == vid],
+                     key=lambda im: im["capture"]["time_local"])
+        before = [im for im in ims if im["capture"]["time_local"] < seg["from"]]
+        after = [im for im in ims if im["capture"]["time_local"] > seg["to"]]
+        inside = [im for im in ims if seg["from"] <= im["capture"]["time_local"] <= seg["to"]]
+        p0 = dict(cur["payload"])
+        done = {"action": action, "view_id": vid, "views_changed": [], "rois_drafted": []}
+
+        def put_view(v, payload):
+            payload = dict(payload, view_id=v, classification_source="manual",
+                           candidate_id=payload.get("candidate_id") if v == vid else None)
+            r = self.store.put("view", v, payload, source="manual", author=author, note=note)
+            self.store.decide("view", v, self.store.get("view", v)["version"], author, "approved", note)
+            done["views_changed"].append(v)
+            return r
+
+        measured = self._measured_targets()
+
+        def drafts_for(new_vid, ref_im, H):
+            for r in self.store.latest("roi"):
+                t, v = r["key"].split("|")
+                if v != vid or t not in measured:
+                    continue
+                polys, excl = warp_payload(H, r["payload"]) if H is not None else (r["payload"]["polygons"], r["payload"].get("exclusions", []))
+                save_roi(self.store, target_id=t, view_id=new_vid, reference_image=ref_im, polygons=polys, exclusions=excl,
+                         author=author, note=("automatic draft: ROI of " + r["key"] + " mapped onto the new camera position - check and approve"
+                                              if H is not None else "copy of " + r["key"] + " (same camera position) - check and approve"))
+                done["rois_drafted"].append(f"{t}|{new_vid}")
+            for r in self.store.latest("roi_skip"):
+                t, v = r["key"].split("|")
+                if v == vid and r["payload"].get("visible") is False:
+                    self.store.put("roi_skip", f"{t}|{new_vid}", dict(r["payload"], view_id=new_vid), source="manual", author=author, note=note)
+
+        def mapping(dst):
+            m = Matcher(self.ctx, config(self.ctx))
+            ref_old = self.by_id[p0["reference_image_id"]]
+            near = (before[-2:] if seg["kind"] != "head" else []) + (after[:2] if seg["kind"] != "tail" else [])
+            shifted = [self.by_id[i] for i in seg.get("shifted_ids", []) if i in self.by_id and i != dst["image_id"]]
+            with self.read_lock:
+                return map_rois(m, [ref_old] + near, [dst] + shifted[:2], ref_old["size"])
+
+        def next_id():
+            nums = [int(r["key"][1:]) for r in self.store.latest("view") if r["key"][1:].isdigit()]
+            return f"V{max(nums) + 1:02d}"
+
+        ref_inside = p0.get("reference_image_id") in {im["image_id"] for im in inside}
+        if action in ("trim", "split") and ref_inside:
+            raise RegistryError("기준 사진이 이 구간 안에 있습니다. '기준 사진 바꾸기'를 쓰세요")
+        if action == "trim":
+            if seg["kind"] == "head" and after:
+                put_view(vid, dict(p0, start_time=after[0]["capture"]["time_local"]))
+            elif seg["kind"] == "tail" and before:
+                put_view(vid, dict(p0, end_time=before[-1]["capture"]["time_local"]))
+            else:
+                raise RegistryError("구도 중간 구간은 기간에서 뺄 수 없습니다. '새 구도로 나누기'를 쓰세요")
+            # the person chose to drop these photos: they must not come back as "photos between views"
+            k = f"unassigned|trim|{vid}|{seg['from']}|{seg['to']}"
+            self.store.put("todo_ack", k, {"key": k, "accepted": True, "note": "left out by the trim fix (camera being moved)",
+                                           "image_ids": [im["image_id"] for im in inside]}, source="manual", author=author)
+        elif action == "split":
+            ex = self.by_id[seg["example_image_id"]]
+            H, n = mapping(ex)
+            new = next_id()
+            if (seg["kind"] == "tail" and not before) or (seg["kind"] == "head" and not after):
+                raise RegistryError("구간 바깥에 남는 사진이 없습니다. 이 구도는 '기준 사진 바꾸기'가 맞습니다")
+            if seg["kind"] == "tail":
+                put_view(vid, dict(p0, end_time=before[-1]["capture"]["time_local"]))
+                put_view(new, dict(p0, start_time=inside[0]["capture"]["time_local"], end_time=p0["end_time"],
+                                   reference_image_id=ex["image_id"], notes=f"split from {vid} (camera moved, {seg['median_shift']})"))
+            elif seg["kind"] == "head":
+                put_view(vid, dict(p0, start_time=after[0]["capture"]["time_local"]))
+                put_view(new, dict(p0, start_time=p0["start_time"], end_time=inside[-1]["capture"]["time_local"],
+                                   reference_image_id=ex["image_id"], notes=f"split from {vid} (camera moved, {seg['median_shift']})"))
+            else:
+                if not before or not after:
+                    raise RegistryError("구간 앞뒤 사진이 없어 나눌 수 없습니다")
+                put_view(vid, dict(p0, end_time=before[-1]["capture"]["time_local"]))
+                put_view(new, dict(p0, start_time=inside[0]["capture"]["time_local"], end_time=inside[-1]["capture"]["time_local"],
+                                   reference_image_id=ex["image_id"], notes=f"split from {vid} (camera moved, {seg['median_shift']})"))
+                cont = f"V{int(new[1:]) + 1:02d}"
+                cref = after[min(3, len(after) - 1)]
+                put_view(cont, dict(p0, start_time=after[0]["capture"]["time_local"], end_time=p0["end_time"],
+                                    reference_image_id=cref["image_id"], notes=f"continuation of {vid} after {new}"))
+                drafts_for(cont, cref, None)
+            drafts_for(new, ex, H)
+            done.update(new_view=new, mapping_inliers=n)
+        elif action == "reref":
+            ex = self.by_id[seg["example_image_id"]]
+            H, n = mapping(ex)
+            put_view(vid, dict(p0, reference_image_id=ex["image_id"]))
+            for r in self.store.latest("roi"):
+                t, v = r["key"].split("|")
+                if v == vid and t in measured:
+                    polys, excl = warp_payload(H, r["payload"])
+                    save_roi(self.store, target_id=t, view_id=vid, reference_image=ex, polygons=polys, exclusions=excl,
+                             author=author, note="automatic draft: ROI mapped onto the new reference photo - check and approve")
+                    done["rois_drafted"].append(r["key"])
+            done["mapping_inliers"] = n
+        else:
+            raise RegistryError("unknown action")
         self._obs = None
+        self.queue_stale()
+        return done
+
+    def _measured_targets(self) -> set:
+        from .target_registry import measured_targets
+        return measured_targets(self.store)
+
+    def log_error(self, path, body, message, tb=None):
+        """Every refused / failed save is appended to <run>/review_errors.log (one JSON line) and printed, so a
+        problem can be diagnosed afterwards without asking the reviewer to copy the message."""
+        from datetime import datetime, timezone
+        row = {"utc": datetime.now(timezone.utc).isoformat(timespec="seconds"), "path": path,
+               **{k: body.get(k) for k in ("author", "image_id", "target_id", "activity_id", "view_id", "kind", "key", "version")
+                  if isinstance(body, dict) and body.get(k) is not None}, "error": message}
+        if tb:
+            row["traceback"] = tb[-2000:]
+        print(f"[review] 실패 {path}: {message}", flush=True)
+        try:
+            with open(self.ctx.run_dir / "review_errors.log", "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(row, ensure_ascii=False) + "\n")
+        except OSError:
+            pass
+
+    def align_of(self, image_id: str, view: dict | None) -> dict | None:
+        """Camera-position check of this photo against its CURRENT view reference (stage `align`), or None."""
+        d = self.ctx.run_dir / "stages" / "view_align"
+        f, f2 = d / "align.jsonl", d / "align_peer.json"
+        if not f.exists() or not view:
+            return None
+        stamp = (f.stat().st_mtime, f2.stat().st_mtime if f2.exists() else 0)
+        if getattr(self, "_align_stamp", None) != stamp:
+            rows = {}
+            for line in f.read_text(encoding="utf-8").splitlines():
+                if line.strip():
+                    r = json.loads(line)
+                    rows[r["_key"]] = r
+            p2 = json.loads(f2.read_text(encoding="utf-8")) if f2.exists() else {}
+            self._align = {k: dict(r, **p2.get(k, {})) for k, r in rows.items()}
+            self._align_stamp = stamp
+        key = f"{image_id}|{view['key']}|v{view['version']}|{view['payload'].get('reference_image_id')}"
+        r = self._align.get(key)
+        if not r:
+            return None
+        return {"status": r.get("status2") or r.get("status"), "shift": r.get("peer_shift", r.get("shift"))}
+
+    def _obs_stale(self, im, views=None, rois=None, tids=None) -> bool:
+        """True if any target's observation of this photo is missing or was built on another view/ROI version."""
+        views = views if views is not None else store_views(self.store)
+        rois = rois if rois is not None else {r["key"]: r["version"] for r in self.store.latest("roi")}
+        tids = tids if tids is not None else [r["key"] for r in self.store.latest("target")]
+        vid = assign_view(im, views)["view_id"]
+        obs = self.obs()
+        for tid in tids:
+            o = obs.get(obs_key(im["image_id"], tid))
+            want = roi_key(tid, vid) if vid else None
+            if o is None:
+                if want in rois:
+                    return True
+                continue
+            if o.get("roi_source") == "manual":
+                continue
+            ref = o.get("roi_ref") or {}
+            if want in rois:
+                if ref.get("kind") != "roi" or ref.get("key") != want or ref.get("version") != rois[want]:
+                    return True
+            elif ref.get("kind") == "roi" and o.get("status") == "ok":
+                return True                      # the photo moved to a view without this ROI
+        return False
+
+    def fresh_obs(self, im, tid):
+        """Observation of (photo, target), recomputed now if it is stale (about a second). Used before saving a label so
+        a save never fails or lands on an old ROI just because the background refresh has not reached this photo."""
+        if im["status"] == "ok" and self._obs_stale(im, tids=[tid]):
+            with self._bg_cv:
+                if im["image_id"] in self._bg_queue:
+                    self._bg_queue.remove(im["image_id"])
+            with self.lock:
+                self._reassign([im])
+        return self.obs().get(obs_key(im["image_id"], tid))
+
+    def _reassign_stale(self, ims):
+        views, tids = store_views(self.store), [r["key"] for r in self.store.latest("target")]
+        rois = {r["key"]: r["version"] for r in self.store.latest("roi")}
+        stale = [im for im in ims if im["status"] == "ok" and not im.get("duplicate_of") and self._obs_stale(im, views, rois, tids)]
+        if stale:
+            with self._bg_cv:
+                ids = {im["image_id"] for im in stale}
+                self._bg_queue = [i for i in self._bg_queue if i not in ids]
+            self._reassign(stale)
+        return len(stale)
+
+    def queue_stale(self) -> int:
+        """At start-up: queue every review photo whose observation no longer matches the current views / ROIs
+        (store edited while the server was off, auto re-run, view split ...)."""
+        views, tids = store_views(self.store), [r["key"] for r in self.store.latest("target")]
+        rois = {r["key"]: r["version"] for r in self.store.latest("roi")}
+        focus = self.focus_ids()
+        stale = [im["image_id"] for im in self.images if im["image_id"] in focus and im["status"] == "ok"
+                 and not im.get("duplicate_of") and self._obs_stale(im, views, rois, tids)]
+        if stale:
+            with self._bg_cv:
+                self._bg_queue = [i for i in self._bg_queue if i not in set(stale)]
+            self._queue_ids(stale)
+        return len(stale)
+
+    def _queue_ids(self, ids):
+        with self._bg_cv:
+            have = set(self._bg_queue)
+            self._bg_queue += [i for i in ids if i not in have]
+            running = self._bg_thread is not None and self._bg_thread.is_alive()
+            self.bg = dict(self.bg, running=True, view=None, queued=len(self._bg_queue),
+                           images=(self.bg.get("done", 0) if running else 0) + len(self._bg_queue))
+            if not running:
+                self.bg["done"] = 0
+                self._bg_thread = threading.Thread(target=self._bg_worker, daemon=True)
+                self._bg_thread.start()
+
+    def _reassign(self, images):
+        images = [im for im in images if im["status"] == "ok"]
+        if not images:
+            return
+        with self.lock:                      # re-entrant: every caller already holds it, this makes it explicit
+            build_observations(self.ctx, images=images, cache=self.obs_cache, quiet=True, all_images=self.images,
+                               reader=self.obs_reader)
+            self._obs = None
+            self._obs_gen += 1
+            self._dirty_rows |= {im["image_id"] for im in images}
 
     # -- background refresh of whole views (so no photo is left with a stale ROI) --
     def view_images(self, view_id, focus_only: bool = True):
@@ -435,18 +829,46 @@ class ReviewService:
                 and (focus is None or im["image_id"] in focus)
                 and (view_id is None or assign_view(im, views)["view_id"] == view_id)]
 
-    def refresh_view_async(self, view_id=None):
-        def work(ims):
-            try:
-                self.bg = {"running": True, "images": len(ims), "view": view_id}
-                for i in range(0, len(ims), 8):          # small chunks so UI requests are not blocked long
-                    with self.lock:
-                        self._reassign(ims[i:i + 8])
-                    self.bg["done"] = min(len(ims), i + 8)
-            finally:
-                self.bg = dict(self.bg, running=False)
+    def refresh_view_async(self, view_id=None, first=()):
+        """Queue the view's photos for a background observation refresh.
+
+        One worker thread for the whole server (several ROI saves no longer start competing threads); it refreshes
+        ONE photo per lock hold and pauses in between, so clicks in the UI are served between photos."""
         ims = self.view_images(view_id)
-        threading.Thread(target=work, args=(ims,), daemon=True).start()
+        with self._bg_cv:
+            front = [i for i in first if i in self.by_id]
+            rest = [i for i in self._bg_queue if i not in front]
+            queued = set(front) | set(rest)
+            self._bg_queue = front + rest + [im["image_id"] for im in ims if im["image_id"] not in queued]
+            running = self._bg_thread is not None and self._bg_thread.is_alive()
+            self.bg = dict(self.bg, running=True, view=view_id, queued=len(self._bg_queue),
+                           images=(self.bg.get("done", 0) if running else 0) + len(self._bg_queue))
+            if not running:
+                self.bg["done"] = 0
+            if self._bg_thread is None or not self._bg_thread.is_alive():
+                self._bg_thread = threading.Thread(target=self._bg_worker, daemon=True)
+                self._bg_thread.start()
+            self._bg_cv.notify()
+
+    def _bg_worker(self):
+        import time
+        done = 0
+        while True:
+            with self._bg_cv:
+                if not self._bg_queue:
+                    self.bg = dict(self.bg, running=False, queued=0)
+                    return
+                iid = self._bg_queue.pop(0)
+            im = self.by_id.get(iid)
+            if im is not None:
+                try:
+                    with self.lock:
+                        self._reassign([im])
+                except Exception:  # noqa: BLE001 - one bad photo must not stop the refresh
+                    traceback.print_exc()
+            done += 1
+            self.bg = dict(self.bg, done=done, queued=len(self._bg_queue), images=done + len(self._bg_queue))
+            time.sleep(0.05)                      # let waiting UI requests take the lock
 
     def todo(self) -> dict:
         from .todo import build_todo, rebase_candidates
@@ -476,7 +898,7 @@ class ReviewService:
             for it in sec["items"]:
                 if not isinstance(it, dict):
                     continue
-                if sec["id"] == "view_proposals" and it.get("kind") == "update_view":
+                if sec["id"] in ("view_proposals", "view_proposals_fyi") and it.get("kind") == "update_view":
                     cur, prop = it["current"], it["proposed"]
                     if prop.get("end_time") != cur.get("end_time"):
                         it["photos_around_proposed_end"] = around(prop["end_time"])
@@ -519,7 +941,7 @@ class ReviewService:
         im, src_im = self.image(iid), self.image(body["from_image_id"])
         src = self.store.get("state_label", label_key(src_im["image_id"], tid, act))
         cur = self.store.get("state_label", body["key"])
-        o = self.obs().get(obs_key(iid, tid))
+        o = self.fresh_obs(self.image(iid), tid)
         if src is None or o is None or o.get("roi_ref") != src["payload"].get("roi_ref"):
             raise LabelError("both photos must have labels on the same ROI version (same view)")
         payload = {k: v for k, v in src["payload"].items()
@@ -607,8 +1029,8 @@ class ReviewService:
             except (RegistryError, StoreError) as error:
                 skipped.append({"target": tid, "reason": str(error)[:120]})
         if done:
-            self.refresh_view_async(dst_view)
-        return {"copied": done, "skipped": skipped}
+            self.refresh_view_async(dst_view, first=[ref["image_id"]])
+        return {"copied": done, "skipped": skipped, "from_view": src_view, "to_view": dst_view}
 
 
 def make_handler(service: ReviewService):
@@ -630,12 +1052,29 @@ def make_handler(service: ReviewService):
                 # nothing to answer, nothing lost
                 self.close_connection = True
 
+        def _timed(self, t0, what):
+            import time
+            dt = time.time() - t0
+            if dt > 1.5:
+                print(f"[review] slow {what} {self.path.split('?')[0][:60]} {dt:.1f}s (background queue {len(service._bg_queue)})",
+                      flush=True)
+
         def do_GET(self):
+            import time
+            t0 = time.time()
+            try:
+                return self._do_get()
+            finally:
+                self._timed(t0, "GET")
+
+        def _do_get(self):
             url = urlparse(self.path)
             q = parse_qs(url.query)
             try:
                 if url.path in ("/", "/index.html"):
                     return self._send(200, (STATIC / "index.html").read_bytes(), "text/html; charset=utf-8")
+                if url.path in ("/guide", "/help"):
+                    return self._send(200, render_guide(), "text/html; charset=utf-8")
                 if url.path in ("/todo", "/todo.html"):
                     return self._send(200, (STATIC / "todo.html").read_bytes(), "text/html; charset=utf-8")
                 if url.path == "/api/todo":
@@ -645,7 +1084,7 @@ def make_handler(service: ReviewService):
                 if url.path == "/api/meta":
                     return self._send(200, service.meta())
                 if url.path == "/api/images":
-                    return self._send(200, service.image_list())
+                    return self._send(200, service.image_list_bytes())
                 if url.path.startswith("/api/image/"):
                     iid = url.path.split("/")[-1]
                     return self._send(200, service.jpeg(iid, int(q.get("max", ["1600"])[0])), "image/jpeg")
@@ -667,17 +1106,93 @@ def make_handler(service: ReviewService):
                 return self._send(500, {"error": f"{type(error).__name__}: {error}"})
 
         def do_POST(self):
+            import time
+            t0 = time.time()
+            try:
+                return self._do_post()
+            finally:
+                self._timed(t0, "POST")
+
+        def _do_post(self):
+            body = {}
             try:
                 length = int(self.headers.get("Content-Length", "0"))
                 body = json.loads(self.rfile.read(length) or b"{}")
                 return self._send(200, service.post(urlparse(self.path).path, body))
             except (StoreError, RegistryError, LabelError, ValueError, KeyError) as error:
-                return self._send(400, {"error": str(error)})
+                msg = str(error) if not isinstance(error, KeyError) else f"요청에 필요한 값이 없습니다: {error}"
+                service.log_error(urlparse(self.path).path, body, msg)
+                out = {"error": msg}
+                if isinstance(error, StaleVersion):
+                    out["current"] = error.current
+                return self._send(400, out)
             except Exception as error:  # noqa: BLE001
                 traceback.print_exc()
-                return self._send(500, {"error": f"{type(error).__name__}: {error}"})
+                service.log_error(urlparse(self.path).path, body, f"{type(error).__name__}: {error}", traceback.format_exc())
+                return self._send(500, {"error": f"서버 오류 {type(error).__name__}: {error}"})
     return Handler
 
+
+
+def render_guide() -> bytes:
+    """docs/검수_사용설명서.md as a small HTML page (minimal Markdown: headings, lists, tables, code, quotes)."""
+    import html
+    import re
+    md = (Path(__file__).resolve().parent / "docs" / "검수_사용설명서.md").read_text(encoding="utf-8")
+
+    def inline(t):
+        t = html.escape(t)
+        t = re.sub(r"`([^`]+)`", r"<code>\1</code>", t)
+        return re.sub(r"\*\*([^*]+)\*\*", r"<b>\1</b>", t)
+
+    out, lines, i = [], md.split("\n"), 0
+    while i < len(lines):
+        ln = lines[i]
+        if ln.startswith("```"):
+            j = i + 1
+            while j < len(lines) and not lines[j].startswith("```"):
+                j += 1
+            out.append("<pre>" + html.escape("\n".join(lines[i + 1:j])) + "</pre>")
+            i = j + 1
+            continue
+        if ln.startswith("|"):
+            rows = []
+            while i < len(lines) and lines[i].startswith("|"):
+                cells = [c.strip() for c in lines[i].strip().strip("|").split("|")]
+                if not all(set(c) <= set("-: ") for c in cells):
+                    rows.append(cells)
+                i += 1
+            out.append("<table>" + "".join("<tr>" + "".join(f"<{'th' if k == 0 else 'td'}>{inline(c)}</{'th' if k == 0 else 'td'}>"
+                                                              for c in r) + "</tr>" for k, r in enumerate(rows)) + "</table>")
+            continue
+        m = re.match(r"(#{1,3}) (.*)", ln)
+        if m:
+            out.append(f"<h{len(m.group(1))}>{inline(m.group(2))}</h{len(m.group(1))}>")
+        elif re.match(r"\s*- ", ln):
+            items = []
+            while i < len(lines) and re.match(r"\s*- |\s{2,}\S", lines[i]):
+                if re.match(r"\s*- ", lines[i]):
+                    items.append((len(lines[i]) - len(lines[i].lstrip()), lines[i].strip()[2:]))
+                else:
+                    items[-1] = (items[-1][0], items[-1][1] + " " + lines[i].strip())
+                i += 1
+            out.append("<ul>" + "".join(f"<li style='margin-left:{d * 8}px'>{inline(t)}</li>" for d, t in items) + "</ul>")
+            continue
+        elif ln.startswith(">"):
+            out.append(f"<blockquote>{inline(ln.lstrip('> '))}</blockquote>")
+        elif ln.strip():
+            out.append(f"<p>{inline(ln)}</p>")
+        i += 1
+    css = ("body{margin:0;background:#15171a;color:#e8e8e8;font:14px/1.6 system-ui,'Malgun Gothic',sans-serif}"
+           "main{max-width:1000px;margin:0 auto;padding:16px 20px 60px}a{color:#7fb0ff}h1{font-size:22px}h2{font-size:18px;"
+           "border-bottom:1px solid #2c3036;padding-bottom:4px;margin-top:28px}h3{font-size:15px}pre{background:#0d0f11;padding:10px;"
+           "overflow:auto;border-radius:6px;font-size:12.5px;line-height:1.45}code{background:#262a30;padding:1px 4px;border-radius:3px}"
+           "table{border-collapse:collapse;width:100%;font-size:13px;margin:8px 0}td,th{border:1px solid #2c3036;padding:5px 8px;"
+           "text-align:left;vertical-align:top}th{background:#1d2024}blockquote{color:#9aa0a6;margin:4px 0;border-left:3px solid #3b82f6;"
+           "padding-left:10px}header{position:sticky;top:0;background:#15171a;border-bottom:1px solid #2c3036;padding:8px 20px}")
+    page = (f"<!doctype html><html lang='ko'><head><meta charset='utf-8'><title>검수 사용법</title><style>{css}</style></head><body>"
+            f"<header><a href='/todo'>할 일</a> · <a href='/'>편집 화면</a></header><main>{''.join(out)}</main></body></html>")
+    return page.encode("utf-8")
 
 def serve(ctx: RunContext, host: str = "127.0.0.1", port: int = 8765, force_unlock: bool = False):
     if host not in ("127.0.0.1", "localhost", "::1"):
@@ -685,7 +1200,8 @@ def serve(ctx: RunContext, host: str = "127.0.0.1", port: int = 8765, force_unlo
     lock = RunLock(ctx.run_dir, "review server", force=force_unlock).acquire()  # auto / assign must not run meanwhile
     try:
         service = ReviewService(ctx)
-        service.refresh_view_async(None)  # samples / labelled photos / references follow the current ROI versions
+        n = service.queue_stale()  # only photos whose view / ROI changed since their observation was built
+        print(f"[review] {n} review photos follow a changed view/ROI: refreshing them in the background", flush=True)
         server = ThreadingHTTPServer((host, port), make_handler(service))
         print(f"[review] http://{host}:{port}/  (run {ctx.info['run_id']}, store {ctx.info['resolved']['store_path']})")
         print(f"[review] to-do list: http://{host}:{port}/todo")
@@ -697,6 +1213,7 @@ def serve(ctx: RunContext, host: str = "127.0.0.1", port: int = 8765, force_unlo
         finally:
             server.server_close()
             service.reader.close()
+            service.obs_reader.close()
             service.obs_cache.close()
             service.obs_cache.maybe_compact()
     finally:

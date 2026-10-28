@@ -94,7 +94,102 @@ Development of an AI-Powered Construction Management Support System for Global R
 Thumbs.db
 desktop.ini
 
-# ===== Agent RAG: local-only files =====
-.venv312/
+# Local vision runs: images, predictions, private manifests, checkpoints
+artifacts/
+
+# ===== Source data and generated outputs: local only (2026-10-06) =====
+# Keep code, human-written documentation and non-sensitive schemas/configs in Git.
+# These rules also cover files accidentally copied outside data/ or artifacts/.
+# Ignore rules do not remove files already tracked in Git.
+data/**
+!data/**/
+!data/**/.gitkeep
+datasets/
+oxblue/
+preprocessed/
+outputs/
+results/
+runs/
+checkpoints/
+weights/
+downloads/
+private/
+tmp/
+cache/
+
+# Photos, annotations, overlays, review figures and source attachments
+*.[jJ][pP][gG]
+*.[jJ][pP][eE][gG]
+*.[pP][nN][gG]
+*.[wW][eE][bB][pP]
+*.[bB][mM][pP]
+*.[tT][iI][fF]
+*.[tT][iI][fF][fF]
+*.[gG][iI][fF]
+*.[sS][vV][gG]
+*.[hH][eE][iI][cC]
+*.[pP][dD][fF]
+*.[dD][oO][cC]
+*.[dD][oO][cC][xX]
+*.[pP][pP][tT]
+*.[pP][pP][tT][xX]
+*.[xX][lL][sS]
+*.[xX][lL][sS][xX]
+*.[xX][lL][sS][mM]
+*.[dD][wW][gG]
+*.[dD][xX][fF]
+*.[iI][fF][cC]
+*.[rR][vV][tT]
+*.[sS][kK][pP]
+*.[mM][pP][4]
+*.[aA][vV][iI]
+*.[mM][oO][vV]
+*.[mM][kK][vV]
+
+# Dataset tables, tensor exports, model weights and archives
+*.[cC][sS][vV]
+*.[tT][sS][vV]
+*.[pP][aA][rR][qQ][uU][eE][tT]
+*.[nN][pP][yY]
+*.[nN][pP][zZ]
+*.[pP][kK][lL]
+*.[pP][iI][cC][kK][lL][eE]
+*.[hH][5]
+*.[hH][dD][fF][5]
+*.[pP][tT]
+*.[pP][tT][hH]
+*.[cC][kK][pP][tT]
+*.[oO][nN][nN][xX]
+*.[sS][aA][fF][eE][tT][eE][nN][sS][oO][rR][sS]
+*.[zZ][iI][pP]
+*.[7][zZ]
+*.[rR][aA][rR]
+*.[tT][aA][rR]
+*.[gG][zZ]
+
+# Private image selections, metadata, inference/training logs and review pages
+*.local.*
+manifest*.json
+metadata*.json
+metrics.json
+history.json
+data_audit.json
+*.jsonl
 *.log
+*.html
+events.out.tfevents.*
+wandb/
+mlruns/
+
+# LOSO experiment: private config, bundle and results (photo ids contain real site names)
+local*.json
+prepare_config*.json
+loso_bundle*/
+loso_results*/
+
+# ===== Agent RAG: local-only files (from main) =====
+.venv312/
 src/llm_agent_module/examples/data/
+
+# Reference papers that the team commits on purpose (see docs/references/README.md)
+!docs/references/papers/*.[pP][dD][fF]

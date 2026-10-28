@@ -1,0 +1,7 @@
+# private / machine-specific files of the LOSO experiment - never commit
+local*.json
+prepare_config*.json
+results/
+*_results/
+loso_bundle*/
+*.zip
