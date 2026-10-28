@@ -239,8 +239,9 @@ def train_one(local_path: Path, model_name: str, fold_name: str, seed: int, resu
            "gpu": torch.cuda.get_device_name(0) if device.type == "cuda" else None,
            "gpu_mem_gb": round(torch.cuda.get_device_properties(0).total_memory / 2 ** 30, 2) if device.type == "cuda" else None,
            "determinism": {"cudnn_deterministic": torch.backends.cudnn.deterministic, "cudnn_benchmark": torch.backends.cudnn.benchmark,
-                           "deterministic_algorithms": "warn_only", "CUBLAS_WORKSPACE_CONFIG": os.environ.get("CUBLAS_WORKSPACE_CONFIG"),
-                           "note": "AMP and bilinear-upsample backward on CUDA are not bit-exact; same machine + software -> near-identical"},
+                           "deterministic_algorithms": torch.are_deterministic_algorithms_enabled(),
+                           "note": "seeds, data order and augmentation are fixed; strict GPU determinism is off (8x slower), "
+                                   "so repeated GPU runs differ only in the last digits"},
            "code_sha256": code_hashes(), "git": git_commit(), "encoder_weights": None, "argv": sys.argv}
     resume = out / "resume.pt"
     state = None
