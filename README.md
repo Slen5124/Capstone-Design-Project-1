@@ -1,27 +1,31 @@
-# 종합설계프로젝트 1
+# Development of an AI-Powered Construction Management Support System for Global Retail Stores
 
-**Alo Yoga 현장 이미지 기반 공사 진행률 모니터링 및 보고 자동화**
+**종합설계프로젝트 1 · Team Aloha (알로)**
 
 경북대학교 SW중심대학 학부생중심 산학협력프로젝트 · 2026학년도 2학기
 
 ## 프로젝트 소개
 
-Alo Yoga의 글로벌 매장 공사 현황을 원격으로 파악하기 위해, 현장 사진에서 벽·바닥·천장 등의 시공 상태와 진행률을 분석하고 로컬 LLM을 활용해 공정 보고서를 작성하는 시스템을 개발합니다.
+글로벌 리테일 매장의 현장 사진으로 시공 상태를 분석하고, 서버에 저장한 분석 결과와 공정표를 바탕으로 Agent가 근거 있는 보고서·질의응답을 제공하는 시스템을 개발합니다. 분석 대상, 상태 클래스와 측정 기준은 미정입니다.
 
-[9월 19일 팀 회의](docs/meetings/2026-09-19-weekly.md)에서 **A안(이미지 기반 공정 모니터링)을 우선 추진**하기로 했습니다. 실제 제공 데이터에 따라 B안(개략 공사비·견적 지원)으로 전환할 가능성을 열어둡니다.
+기존 과제는 알로요가 매장의 고객 동선·존 분석이었습니다. A안(현장 사진 기반 공사 진행 모니터링)과 B안(개략 공사비·공급업체 견적)을 검토한 뒤, 2026년 9월 19일 팀 내부 회의에서 A안을 우선 선택했습니다. 당시에는 필요한 자료를 알로요가 측에서 제공하기 어려우면 B안으로 전환하는 조건도 검토했습니다. 현재는 A안으로 확정되어 진행 중입니다. [9월 19일 팀 회의록](https://github.com/Slen5124/Capstone-Design-Project-1/blob/main/docs/meetings/2026-09-19-weekly.md)과 [과제 변경 경위·기획 자료 요약](docs/planning/project-background.md)에 배경을 정리했습니다.
 
-기본 흐름은 **현장 사진 → 시공 상태 인식·진행률 산정 → 공정 보고서 작성**입니다. 지연 의심 판단과 현장 사유 확인은 확장 기능으로 검토합니다.
+세 분할 모델을 학습해 성능을 비교하고, 비교 결과가 좋은 모델을 선택하는 과정까지 프로젝트 범위에 포함합니다. 논문 주제에 모델 비교를 포함할지는 아직 정하지 않았습니다. 세부 흐름은 [현재 비전 파이프라인](docs/planning/current-vision-pipeline.md)에 정리했습니다.
+
+상태별로 클래스를 분리해 인식할 계획입니다. 구체적인 대상 공종, 클래스 이름, 비율 계산 방식은 미정이며 추후 정합니다. 관측값을 실제 공정률로 환산하는 기준도 별도로 합의해야 합니다.
 
 | 항목 | 내용 |
 | --- | --- |
-| 참여기업 | Alo Yoga · 알로요가 |
+| 참여기업 | Alo Yoga |
 | 기업 멘토 | Andy Choe |
+| 팀명 | Team Aloha (알로) |
+| 공식 과제명 | Development of an AI-Powered Construction Management Support System for Global Retail Stores |
 | 교내 지도교수 | 정설영 |
 | 산학 지도교수 | 김일경 |
 | 팀 | 경북대학교 2조 |
 | 수행 기간 | 2026학년도 2학기 |
 
-## 현재 진행 상황
+## 시스템 설계와 구현 계획
 
 **기준: 2026년 10월 23일 · 비전 파이프라인 구현 완료, 학습 데이터 확장 중**
 
@@ -51,6 +55,13 @@ Alo Yoga의 글로벌 매장 공사 현황을 원격으로 파악하기 위해, 
 [`NEW_SITE_GUIDE_ko.md`](src/vision/state_pipeline/vision_preprocessing/docs/NEW_SITE_GUIDE_ko.md), 설계 결정과 데이터 계약은
 [`AI_HANDOFF.md`](src/vision/state_pipeline/vision_preprocessing/docs/AI_HANDOFF.md)를 참고합니다.
 
+기획 문서:
+
+- [현재 비전 파이프라인](docs/planning/current-vision-pipeline.md)
+- [과제 변경 경위·기획 자료 요약](docs/planning/project-background.md)
+- [시스템 구조도·팀별 일정 분석](docs/planning/02-03-analysis.md)
+- [Git 산출물·이슈 초안·PR 순서](docs/planning/git-deliverables-plan.md)
+
 ## 협업 공간
 
 **[Notion 대시보드 바로가기](https://app.notion.com/p/3db226595aca8059af0df02fe2d5a3eb)**
@@ -73,6 +84,7 @@ Alo Yoga의 글로벌 매장 공사 현황을 원격으로 파악하기 위해, 
 | [`src/vision/preprocessing/`](src/vision/preprocessing/) | (보관) 초기 Grounding DINO → SAM 2.1 마스크 초안 코드. 현재는 SAM3 결과를 직접 사용하므로 쓰지 않음 |
 | [`src/vision/README.md`](src/vision/README.md), `train_smoke.py`, `dataset.py` | (보관) 초기 5클래스 DeepLabv3+ 실행 확인. 현재 학습 코드는 `state_pipeline/vision_preprocessing/train/` |
 | [`docs/experiments/`](docs/experiments/) | 실험 기록 (10-05 DeepLabv3+ smoke는 초기 계획의 기록) |
+| [`docs/planning/`](docs/planning/) | 현재 시공 분석 과제의 구조·일정 분석 및 구현 기획 |
 | [`docs/meetings/`](docs/meetings/) | Notion과 동일하게 관리하는 Markdown 회의록 |
 | [`docs/proposal/`](docs/proposal/) | 최초 배정 과제(고객 동선·Zone 분석) 제안서 요약. 방향 전환 이전의 배경 자료 |
 | [`docs/references/`](docs/references/) | 논문·기술문서 레퍼런스 및 리뷰 |
@@ -87,9 +99,9 @@ Alo Yoga의 글로벌 매장 공사 현황을 원격으로 파악하기 위해, 
 
 | 이름 | 역할 |
 | --- | --- |
-| 강원준 | Agentic AI·문서 작성 |
-| 강태웅 | 전처리·Vision AI |
-| 김병조 | Agentic AI·문서 작성 |
-| 이윤한 | 전처리·Vision AI |
+| 이윤한 | 비전 팀 리드: 모델 학습·추론·학습 테스트 |
+| 강태웅 | 비전 데이터 전처리 |
+| 강원준 | Agent·RAG |
+| 김병조 | DB·백엔드 |
 
-9월 19일 팀 회의에서 정한 역할을 기준으로 하며, 세부 작업은 진행 상황에 따라 분담합니다.
+세부 기술 선택과 업무 일정은 [파이프라인](docs/planning/current-vision-pipeline.md)과 [팀별 일정 분석](docs/planning/02-03-analysis.md)을 참고합니다.
