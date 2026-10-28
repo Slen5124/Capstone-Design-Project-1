@@ -32,7 +32,9 @@ SAM3 자동 분할 결과를 정리하고 사람이 검수한 라벨만 학습 �
 | `vision_preprocessing/` | 2차 전처리, 검수 앱, export, 학습 코드 (`vp.cmd`로 실행) |
 | `vision_preprocessing/config/site_example.json` | 현장 설정 예시. 현장마다 복사해서 사용 |
 | `vision_preprocessing/config/taxonomy.json` | 물체 · 대상 · 작업 분류 정의 |
-| `vision_preprocessing/train/train_quick.py` | 빠른 학습 · 평가 스크립트 |
+| `vision_preprocessing/train/train_quick.py` | 학습 · 평가 (동결 인코더 + U-Net / UPerNet / Linear + 헤드 2개) |
+| `vision_preprocessing/train/infer_quick.py` | 인퍼런스: 사진 → 상태 맵 → ROI(승인본 또는 자동 제안) → 설치율 → `vision_output.json` |
+| `vision_preprocessing/tools/propagate_labels.py` | 공정이 안 바뀐 구간에 사람 라벨을 복사한 보조 학습 데이터(전파 라벨) 생성 |
 | `vision_preprocessing/docs/NEW_SITE_GUIDE_ko.md` | **새 현장 추가 사용 설명서 (먼저 읽기)** |
 | `vision_preprocessing/docs/AI_HANDOFF.md` | 설계 결정 · 데이터 계약 요약 (다른 사람/LLM 인계용) |
 | `docs/stage1_*.txt` | 1차 전처리 상세 안내 |
@@ -97,15 +99,36 @@ pip install torch timm      rem 환경에 맞는 CUDA 버전으로 설치
 `--decoder unet | upernet | linear`, `--encoder` (timm 모델 이름, 기본 `convnext_tiny.fb_in22k`). 인코더는 동결되며 가중치는 저장하지 않습니다.
 출력: `metrics.json` (state mIoU, 설치율 오차), `log.csv`, 오버레이 이미지, `model_quick.pt`. **출력물은 커밋하지 않습니다.**
 
+### 5. 전파 라벨 (선택)
+
+앞뒤 사람 라벨이 같은 안정 구간의 사진에만 라벨을 복사해 학습 데이터를 늘립니다. 사람 승인이 아니며(`label_source: propagated`),
+테스트 분할에는 넣지 않고 학습 때 가중치를 낮춥니다(`--propagated-weight`, 기본 0.5).
+
+```bat
+.venv\Scripts\python -m vision_preprocessing.tools.propagate_labels plan  --run <run> --export <run>\exports\<이름>_train_full --store <검수 저장소.sqlite>
+rem   <run>\propagation\periods.csv 에서 구간 확인 (잘못된 구간은 overrides.json 으로 제외 · 재지정)
+.venv\Scripts\python -m vision_preprocessing.tools.propagate_labels build --run <run> --plan <run>\propagation\plan.json --name <이름>
+.venv\Scripts\python -m vision_preprocessing.train.train_quick --export <사람 export> <run>\exports\<이름> --out <출력>
+```
+
+### 6. 인퍼런스
+
+```bat
+.venv\Scripts\python -m vision_preprocessing.train.infer_quick --model <학습 결과>\model_quick.pt --images <구도 하나의 사진 폴더> ^
+    --site-id SITE_B --view V01 --out <출력 폴더>
+```
+
+ROI가 없으면 처음 쓸 만한 사진 3장에서 측정 가능한 벽 영역을 A01, A02 … 로 제안합니다(`provisional`, 사람이 한 번 W01 … 로 대응·확인).
+
 ## 테스트 (합성 데이터, 실제 데이터 불필요)
 
 ```bat
-.venv\Scripts\python -m unittest vision_preprocessing.tests.test_auto vision_preprocessing.tests.test_pipeline
+.venv\Scripts\python -m unittest vision_preprocessing.tests.test_auto vision_preprocessing.tests.test_pipeline vision_preprocessing.tests.test_infer_core vision_preprocessing.tests.test_roi_conflicts vision_preprocessing.tests.test_train_quick
 cd qa_v3 && ..\.venv\Scripts\python -m unittest discover -p "test_*.py" && cd ..
 cd qa_v2 && ..\.venv\Scripts\python -m unittest discover -p "test_*.py" && cd ..
 ```
 
-확인된 결과: vision_preprocessing 49개 · qa_v3 83개 · qa_v2 42개 통과 (학습 테스트는 torch/timm이 없으면 건너뜀).
+확인된 결과: vision_preprocessing 78개 · qa_v3 83개 · qa_v2 42개 통과 (학습 · 인퍼런스 테스트 3개는 torch/timm이 없으면 건너뜀).
 
 ## 원칙
 

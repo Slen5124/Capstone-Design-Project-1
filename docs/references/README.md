@@ -1,6 +1,11 @@
 # 논문·레퍼런스
 
-프로젝트 관련 논문, 기술 문서, 리테일 분석 사례를 정리하는 공간.
+프로젝트 관련 논문, 기술 문서를 정리하는 공간.
+
+> 아래 주제 분류와 읽을 목록 중 객체 검출·트래킹 / 존 카운팅 / 리테일 분석 항목은 최초 과제(고객 동선·Zone 분석) 기준입니다.
+> 2026-09-17 방향 전환 뒤의 과제는 공사 사진의 **시공 상태 분할·진행률 산정**이므로, 지금 관련 있는 주제는
+> `segmentation`(SAM3 · ConvNeXt/DINOv3 인코더 · U-Net/UPerNet 디코더), `construction-progress`(사진 기반 공정 진행률),
+> `label-propagation`(시계열 사진의 라벨 전파·약지도), `privacy` 입니다.
 
 ## 작성 규칙
 
@@ -21,6 +26,9 @@
 | `kpi-metrics` | KPI 설계, 유입률/침투율 등 지표 정의 |
 | `privacy` | CCTV 데이터 프라이버시, 익명화 |
 | `viz-dashboard` | 대시보드·시각화 방법론 |
+| `segmentation` | 의미 분할 · 사전학습 인코더(SAM3, DINOv3, ConvNeXt) · 디코더 비교 |
+| `construction-progress` | 사진 기반 공사 진행률 · 시공 상태 인식 |
+| `label-propagation` | 시계열 사진의 라벨 전파 · 약지도 학습 |
 | `vlm-hallucination` | 이미지 설명의 시각적 근거 검증과 오류 교정 |
 | `long-context` | 긴 입력에서의 정보 활용·근거 인용 평가 |
 | `agent-evaluation` | Agent 답변의 근거·정확성·판단불가 처리 평가 |

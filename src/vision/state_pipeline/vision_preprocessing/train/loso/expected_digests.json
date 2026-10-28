@@ -1,0 +1,47 @@
+{
+ "protocol_version": "loso-v1",
+ "protocol_sha256": "7e0132ac02dd33aa",
+ "exports": {
+  "SITE_A/human": "6cde8726d8227164",
+  "SITE_A/propagated": "4f1096a92e8105d4",
+  "SITE_B/full": "9b043d2a1bfb9631",
+  "SITE_C/human": "056387b33064cc39",
+  "SITE_D/full": "c43f717a9480d682"
+ },
+ "folds": {
+  "SITE_A": "9365bc84211be137",
+  "SITE_B": "173153783c81cb17",
+  "SITE_C": "3db882249d77e6c9",
+  "SITE_D": "5af23d787f30c0b3"
+ },
+ "counts": {
+  "SITE_A": {
+   "test": 72,
+   "train_human": 61,
+   "val": 21,
+   "train_propagated": 0,
+   "train_weak": 6331
+  },
+  "SITE_B": {
+   "test": 74,
+   "train_human": 370,
+   "val": 90,
+   "train_propagated": 418,
+   "train_weak": 3110
+  },
+  "SITE_C": {
+   "test": 88,
+   "train_human": 309,
+   "val": 69,
+   "train_propagated": 418,
+   "train_weak": 6331
+  },
+  "SITE_D": {
+   "test": 30,
+   "train_human": 370,
+   "val": 90,
+   "train_propagated": 418,
+   "train_weak": 3221
+  }
+ }
+}

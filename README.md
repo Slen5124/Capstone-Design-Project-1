@@ -27,39 +27,40 @@
 
 ## 시스템 설계와 구현 계획
 
-**기준: 2026년 10월 11일 · 라벨 제작에 SAM3 채택**
+**기준: 2026년 10월 23일 · 비전 파이프라인 구현 완료, 학습 데이터 확장 중**
 
-라벨 제작 방식으로 **Grounding DINO + SAM 2.1과 SAM3를 비교한 뒤 SAM3를 선택**했습니다. SAM3가 만든 마스크·라벨 초안을 사람이 검수·수정하고 상태별 정답을 확정해 **GT(Ground Truth, 학습에 사용할 정답 데이터)**로 사용합니다. 비교의 세부 평가 조건과 수치는 확인된 실험 기록에 따라 추가합니다.
+초기 계획(5클래스 DeepLabv3+ 분할, Grounding DINO → SAM 2.1 마스크 초안)은 10월 초 실행 확인까지만 하고 접었습니다.
+지금은 **"관측 가능한 영역 안에서 얼마나 설치됐는지"** 를 사람이 검수한 라벨로 학습하는 아래 파이프라인으로 바뀌었고, 코드는 전부 `src/vision/state_pipeline/`에 있습니다.
 
-학습 흐름은 **원본 사진 → SAM3 라벨 초안 → 사람 검수·상태 GT 확정 → 사진 + GT로 ResNet-50 기반 DeepLabv3+·U-Net·Mask R-CNN 학습·성능 비교 → 운영 모델 선택**입니다.
+```
+현장 사진 ZIP ─▶ SAM3 자동 분할 (사진마다 LabelMe JSON)
+             ─▶ [1차] qa_v3        폴리곤 정리 · 중복 제거 · 대표 기준으로 벽/천장 보정
+             ─▶ [2차] vp auto      구도(view) 묶기 · ROI 초안 · 카메라 위치/흔들림 검사 · 표본 · 상태 라벨 초안
+             ─▶ [검수] vp review   브라우저 검수 화면(할 일 목록 + 편집 화면): 구도 · 대상 · ROI · 설치 상태 라벨 승인
+             ─▶ [export]           이미지 + semantic / target / visibility / state 마스크 + train/val/test 분할
+             ─▶ [학습] train_quick  동결 인코더(ConvNeXt, timm) + U-Net/UPerNet/Linear 디코더, 헤드 2개(물체 8클래스 / 설치 상태 4클래스)
+             ─▶ [추론] infer_quick  사진 → 상태 맵 → ROI별 설치율 → 일별 진행률 · 이벤트 → vision_output.json  ─▶ 에이전트(보고서)
+```
 
-운영 흐름은 **실제 현장 사진 → 학습을 마친 선택 모델로 대상·상태 분석 → 자체 후처리로 결과 JSON·근거 생성 → 서버에서 검증·저장·조회 → Agent가 저장된 결과와 공정표·문서 근거로 보고서 작성·질의응답**입니다.
-
-전후 사진 비교가 필요한 경우에는 LoMa-L 또는 RoMa v2로 대응 위치를 찾고, 별도 기하 정합·검증을 통과한 공통 영역에서 상태 변화를 계산하는 흐름을 추가합니다. 이 결과도 자체 코드가 JSON으로 정리해 서버로 전달합니다.
-
-| 영역 | 설계 내용 |
+| 항목 | 상태 |
 | --- | --- |
-| 전처리·GT 제작 | 비교 후 채택한 SAM3로 마스크 초안 생성 → 사람 검수·상태 GT 확정 |
-| 학습·평가 | 원본 사진 + 검수한 GT로 ResNet-50 기반 DeepLabv3+·U-Net·Mask R-CNN을 학습·비교하고 운영 모델 선택 |
-| 상태 인식 | DeepLabv3+·U-Net은 픽셀별 클래스 결과, Mask R-CNN은 객체별 박스·클래스·마스크를 출력 |
-| 사진 매칭 | LoMa-L 또는 RoMa v2로 대응 위치를 찾고, 별도 정합 검증 후 공통 영역 비교 |
-| JSON 생성 | 모델·매칭 결과를 자체 코드로 후처리해 클래스 결과·검증된 측정값·근거를 정형화 |
-| 서버·백엔드 | 실제 사진을 선택 모델로 처리한 결과 JSON을 FastAPI·PostgreSQL에서 검증·저장·조회하고 공정표에 연결 |
-| AI 에이전트 | 서버에 저장한 분석 결과·공정표·문서 근거를 조회해 보고서 생성, 수치·날짜·근거 검증 |
-| 성능 개선 실험 | CLIP 지식 증류, VLM 라벨 검수 등의 적용 효과 검토 |
+| 전처리 · 검수 · export · 학습 · 추론 코드 | 구현 완료, 단위 테스트 통과 (vision_preprocessing 78 · qa_v3 83 · qa_v2 42) |
+| 현장 A (고정 카메라) | 라벨링 완료: 사진 399장(train 256 / val 58 / test 85) + 전파 라벨 490장. 벽 2면 |
+| 현장 C (카메라를 자주 옮긴 현장) | 구도 51개 · ROI 전부 승인 · 앵커 라벨 승인. 1차 export 88장, 자동 초안 189장 검수 중. 벽 4면 + 천장 |
+| 현장 B · D | 설정만 준비 |
+| 모델 (현장 A test, 사람 라벨만) | 설치 상태 mIoU 0.952, ROI 설치율 MAE 0.0043, 사진 단위 MAE 0.027 |
+| 보고서 에이전트 | `vision_output.json` 을 입력으로 하는 Agentic AI 파트와 연동 중 |
 
-먼저 전처리와 사람 검수를 통해 학습 라벨을 만들고, 세 모델을 같은 데이터 기준으로 비교합니다. 이 비교 결과와 모델 선택은 프로젝트 산출물이며, 논문 주제 포함 여부는 미정입니다. 백엔드·Agent 작업은 비전 결과 JSON을 연결하는 방향입니다.
+사용 방법은 [`src/vision/state_pipeline/README.md`](src/vision/state_pipeline/README.md), 새 현장 추가는
+[`NEW_SITE_GUIDE_ko.md`](src/vision/state_pipeline/vision_preprocessing/docs/NEW_SITE_GUIDE_ko.md), 설계 결정과 데이터 계약은
+[`AI_HANDOFF.md`](src/vision/state_pipeline/vision_preprocessing/docs/AI_HANDOFF.md)를 참고합니다.
 
-ResNet-50은 분할 모델의 백본·인코더로 사용합니다. SAM3는 학습에 쓸 GT 제작을 돕고, 실제 사진의 시공 상태 분석은 학습한 DeepLabv3+·U-Net·Mask R-CNN 후보 중 선택된 모델이 수행합니다. RoMa/LoMa 계열은 전후 사진의 대응 위치를 찾습니다. 상세 인풋·아웃풋과 비교 단계는 파이프라인 문서를 참고하세요.
+기획 문서:
 
 - [현재 비전 파이프라인](docs/planning/current-vision-pipeline.md)
 - [과제 변경 경위·기획 자료 요약](docs/planning/project-background.md)
 - [시스템 구조도·팀별 일정 분석](docs/planning/02-03-analysis.md)
 - [Git 산출물·이슈 초안·PR 순서](docs/planning/git-deliverables-plan.md)
-
-모델 후보의 정확한 버전, 일정의 세부 날짜, 공정률 산식은 추가 합의 대상입니다. 실행 코드와 검증 결과가 준비되면 실행 방법과 데모를 추가합니다.
-
-개발에는 Python·OpenCV·PyTorch를 사용하고, 보고 자동화에는 로컬 LLM을 활용할 계획입니다.
 
 ## 협업 공간
 
@@ -79,17 +80,20 @@ ResNet-50은 분할 모델의 백본·인코더로 사용합니다. SAM3는 학�
 
 | 경로 | 내용 |
 | --- | --- |
+| [`src/vision/state_pipeline/`](src/vision/state_pipeline/) | **현재 파이프라인.** 1차 전처리(`qa_v3`, `qa_v2`), 2차 전처리 · 검수 앱 · export · 학습 · 추론(`vision_preprocessing`) |
+| [`src/vision/preprocessing/`](src/vision/preprocessing/) | (보관) 초기 Grounding DINO → SAM 2.1 마스크 초안 코드. 현재는 SAM3 결과를 직접 사용하므로 쓰지 않음 |
+| [`src/vision/README.md`](src/vision/README.md), `train_smoke.py`, `dataset.py` | (보관) 초기 5클래스 DeepLabv3+ 실행 확인. 현재 학습 코드는 `state_pipeline/vision_preprocessing/train/` |
+| [`docs/experiments/`](docs/experiments/) | 실험 기록 (10-05 DeepLabv3+ smoke는 초기 계획의 기록) |
 | [`docs/planning/`](docs/planning/) | 현재 시공 분석 과제의 구조·일정 분석 및 구현 기획 |
-| [`docs/proposal/`](docs/proposal/) | 변경 전 알로요가 과제 제안서 요약·이력 |
 | [`docs/meetings/`](docs/meetings/) | Notion과 동일하게 관리하는 Markdown 회의록 |
+| [`docs/proposal/`](docs/proposal/) | 최초 배정 과제(고객 동선·Zone 분석) 제안서 요약. 방향 전환 이전의 배경 자료 |
 | [`docs/references/`](docs/references/) | 논문·기술문서 레퍼런스 및 리뷰 |
-| `notebooks/` | 데이터 탐색·실험용 노트북 (작성 예정) |
-| `src/` | 데이터 처리·모델·리포트 구현 코드 (작성 예정) |
-| `data/` | 로컬 데이터 작업 공간 |
+| `data/` | 로컬 데이터 작업 공간 (Git 추적 제외) |
 
-프로젝트 방향 전환의 배경은 [9월 17일 킥오프 회의록](docs/meetings/2026-09-17-client-kickoff.md)에 정리되어 있습니다. `docs/proposal/`의 최초 제안서 요약은 방향 전환 이전의 배경 자료입니다.
+프로젝트 방향 전환의 배경은 [9월 17일 킥오프 회의록](docs/meetings/2026-09-17-client-kickoff.md)에 정리되어 있습니다.
 
-협업 및 커밋 규칙은 [기여 가이드](CONTRIBUTING.md)를 참고합니다. 기업 내부 자료는 공개 저장소에 올리지 않으며, 원본 데이터는 Git 추적에서 제외된 `data/raw/`에서 관리합니다.
+협업 및 커밋 규칙은 [기여 가이드](CONTRIBUTING.md)를 참고합니다. 기업 내부 자료(현장 사진, 분할 결과, 검수 저장소, 학습 가중치)는 공개 저장소에 올리지 않으며,
+저장소 안의 문서는 현장 이름을 `SITE_A` 처럼 익명화해 적습니다. 원본 데이터는 Git 추적에서 제외된 로컬 작업 폴더에서만 다룹니다.
 
 ## 팀원
 

@@ -229,6 +229,11 @@ def cmd_status(args):
     print(json.dumps(out, ensure_ascii=False, indent=1, default=str))
 
 
+def cmd_prewarm(args):
+    from .prewarm import prewarm
+    prewarm(_ctx(args), focus_only=args.focus_only, workers=args.workers, limit=args.limit)
+
+
 def cmd_snapshot(args):
     ctx = _ctx(args)
     path = ctx.run_dir / "review_store_snapshot.json"
@@ -325,6 +330,10 @@ def build_parser():
     sp.add_argument("--measurements", required=True)
     add("status", cmd_status)
     add("snapshot", cmd_snapshot)
+    sp = add("prewarm", cmd_prewarm)
+    sp.add_argument("--focus-only", action="store_true", help="only samples / anchors / labelled / reference photos")
+    sp.add_argument("--workers", type=int, default=None, help="parallel processes (default: CPU count - 1, max 8)")
+    sp.add_argument("--limit", type=int, default=0, help="stop after N photos (test)")
     add("todo", cmd_todo)
     sp = sub.add_parser("new-site")
     sp.set_defaults(fn=cmd_new_site)

@@ -8,6 +8,8 @@ where it stopped and only recomputes what changed):
     views     camera-view boundary candidates (coarse-to-fine) -> draft views / proposals
     roi_drafts  ROI drafts for views without ROIs (per-target registration from another view)
     drift     daily camera drift vs the view reference (redraw requests)
+    align     EVERY photo vs its view reference: camera-position runs inside a view -> trim / split / new reference
+              suggestions on the to-do page (also fills the review display cache = pre-decrypts photos)
     timeline  per-target state-change candidates, anchored on approved labels
     split     phase-stratified, day-grouped train/val/test split
     samples   labelling samples (stable 2/day, change 6/day, ~15 % messy)
@@ -27,7 +29,7 @@ from pathlib import Path
 
 from .runctx import RunContext, RunLock, atomic_write_json
 
-STAGES = ("ingest", "thumbs", "views", "roi_drafts", "drift", "timeline", "split", "samples", "drafts", "export", "todo")
+STAGES = ("ingest", "thumbs", "views", "roi_drafts", "drift", "align", "timeline", "split", "samples", "drafts", "export", "todo")
 
 
 def _state_path(ctx):
@@ -101,6 +103,19 @@ def stage_drift(ctx, opts):
             "per_view": {v: d["counts"] for v, d in r["views"].items()}}
 
 
+def stage_align(ctx, opts):
+    from .view_align import check_alignment
+    r = check_alignment(ctx, _images(ctx), light=_light(ctx))
+    by = {}
+    for sg in r["segments"]:
+        by[sg["suggest"]] = by.get(sg["suggest"], 0) + 1
+    total = {}
+    for c in r["views"].values():
+        for k, n in c.items():
+            total[k] = total.get(k, 0) + n
+    return {"segments": len(r["segments"]), "by_suggestion": by, "photos": total}
+
+
 def stage_timeline(ctx, opts):
     from .timeline import build_timeline
     r = build_timeline(ctx, _images(ctx))
@@ -172,7 +187,7 @@ def stage_todo(ctx, opts):
 
 
 RUNNERS = {"ingest": stage_ingest, "thumbs": stage_thumbs, "views": stage_views, "roi_drafts": stage_roi_drafts,
-           "drift": stage_drift,
+           "drift": stage_drift, "align": stage_align,
            "timeline": stage_timeline, "split": stage_split, "samples": stage_samples, "drafts": stage_drafts,
            "export": stage_export, "todo": stage_todo}
 

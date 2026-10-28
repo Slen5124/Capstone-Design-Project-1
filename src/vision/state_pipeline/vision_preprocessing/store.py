@@ -329,6 +329,12 @@ class ReviewStore:
             out["records"][kind] = [dict(r, review=self.review_state(kind, r["key"])) for r in self.latest(kind)]
         return out
 
+    def change_token(self) -> tuple:
+        """Changes whenever a record or an approval is written (cheap; used to cache UI lists)."""
+        with self._lock:
+            r = self._db.execute("SELECT (SELECT MAX(rowid) FROM records), (SELECT MAX(id) FROM approvals)").fetchone()
+        return tuple(r)
+
     def counts(self) -> dict:
         out = {}
         for kind in ("view", "target", "applicability", "roi", "observation", "state_label"):

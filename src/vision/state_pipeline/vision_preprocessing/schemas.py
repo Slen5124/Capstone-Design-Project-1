@@ -168,6 +168,57 @@ def polygon_geometry(poly: dict):
     return geometry
 
 
+def sanitize_polygons(polys: list, size, name: str = "polygon") -> tuple[list[dict], list[str]]:
+    """Make hand-drawn polygons usable instead of rejecting them (UI clicks outside the photo, a crossing edge).
+
+    Every point is clamped into the photo, a self-crossing polygon is repaired (make_valid) and split into its
+    parts, and parts under 1 px^2 are dropped. Returns (clean polygons, notes in Korean for the reviewer).
+    Malformed input (not a list of {exterior: [[x, y], ...]}) is returned unchanged so validation reports it."""
+    import shapely
+    from shapely.geometry import MultiPolygon, Polygon, box
+    if not isinstance(polys, list):
+        return polys, []
+    w, h = float(size[0]), float(size[1])
+    frame = box(0, 0, w, h)
+    out, notes = [], []
+
+    def clamp(points):
+        return [[min(max(float(x), 0.0), w), min(max(float(y), 0.0), h)] for x, y in points]
+
+    for i, poly in enumerate(polys):
+        if not isinstance(poly, dict) or not _finite_xy(poly.get("exterior")) or \
+                any(not _finite_xy(hh) for hh in (poly.get("holes") or [])):
+            out.append(poly)
+            continue
+        ext, holes = clamp(poly["exterior"]), [clamp(hh) for hh in (poly.get("holes") or [])]
+        moved = ext != [[float(x), float(y)] for x, y in poly["exterior"]] or \
+            holes != [[[float(x), float(y)] for x, y in hh] for hh in (poly.get("holes") or [])]
+        g = Polygon(ext, holes)
+        if not moved and g.is_valid and g.area > 1.0:
+            out.append(poly)                      # already fine: keep exactly as drawn (no new version on re-save)
+            continue
+        if moved:
+            notes.append(f"{name}[{i}]: 사진 밖에 찍힌 점을 사진 테두리로 맞췄습니다")
+        if not g.is_valid:
+            g = shapely.make_valid(g)
+            notes.append(f"{name}[{i}]: 꼬인(선이 교차하는) 폴리곤을 자동으로 고쳤습니다")
+        g = g.intersection(frame)
+        parts = [g] if isinstance(g, Polygon) else [q for q in getattr(g, "geoms", []) if isinstance(q, (Polygon, MultiPolygon))]
+        flat = []
+        for q in parts:
+            flat += list(q.geoms) if isinstance(q, MultiPolygon) else [q]
+        kept = [q for q in flat if q.area > 1.0]
+        if not kept:
+            notes.append(f"{name}[{i}]: 너무 작거나 선만 있는 폴리곤이라 뺐습니다")
+            continue
+        extra = {k: v for k, v in poly.items() if k not in ("exterior", "holes")}
+        for q in kept:
+            q = shapely.geometry.polygon.orient(q)
+            out.append(dict(extra, exterior=[[round(x, 1), round(y, 1)] for x, y in list(q.exterior.coords)[:-1]],
+                            holes=[[[round(x, 1), round(y, 1)] for x, y in list(r.coords)[:-1]] for r in q.interiors]))
+    return out, notes
+
+
 def polygons_geometry(polys: Iterable[dict]):
     from shapely.ops import unary_union
     parts = [polygon_geometry(p) for p in polys]
