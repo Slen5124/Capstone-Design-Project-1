@@ -127,7 +127,7 @@ def build(protocol: dict, cfg: dict) -> dict:
             missing = set(ids) - {m["image_id"] for m in human[site]} - {m["id"] for m in human[site]}
             if missing:
                 raise SystemExit(f"{site}: {len(missing)} listed human photos are not in the export (e.g. {sorted(missing)[:3]})")
-    # test sets
+    # test sets 사람 라벨링을 기준으로 선택
     test = {}
     for site in sites:
         hs = sorted(human[site], key=lambda m: (m["date"], m["id"]))
@@ -161,7 +161,7 @@ def build(protocol: dict, cfg: dict) -> dict:
         if kind == "full":
             weak[site] = sorted(m["id"] for m in ms)[:: max(1, sp["weak_every"])]
     folds = {}
-    for fold in protocol["folds"]:
+    for fold in protocol["folds"]: # test 현장을 train, val 에서 빼는 명시적 코드
         f = {"fold": fold, "protocol_version": protocol["protocol_version"],
              "test": {"site": fold, "ids": test[fold], "only_targets": ({i: test_targets[fold][i] for i in test[fold]}
                                                                        if test_targets[fold] is not None else None)},
