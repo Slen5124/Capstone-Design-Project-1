@@ -75,6 +75,10 @@ class _Fusion(nn.Module):
 
 
 class DPTHead(nn.Module):
+    # Run in FP32 even under AMP (TwoHeadSeg.heads): in FP16 the residual conv units of trained DPT heads exceeded the
+    # FP16 range (max activations 1.3e5 to 2.8e5 > 65,504) -> Inf / NaN losses and predictions (loso-v1 note, 2026-10-30).
+    fp32 = True
+
     def __init__(self, chans, dims=(64, 128, 256, 256), dim=128):
         super().__init__()
         assert len(chans) == 4, "DPT needs 4 blocks"

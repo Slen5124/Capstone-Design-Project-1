@@ -301,8 +301,13 @@ class TwoHeadSeg(nn.Module):
     def heads(self, f, size):
         h, w = int(size[0]), int(size[1])
         ws = self._work_size(size)
-        y = self.decoder(f, ws)
-        ls, lt = self.sem_head(y), self.state_head(y)
+        if getattr(self.decoder, "fp32", False):       # decoder + heads in FP32 even under autocast (DPT: FP16 overflow)
+            with torch.autocast(device_type=f[0].device.type, enabled=False):
+                y = self.decoder([t.float() for t in f], ws)
+                ls, lt = self.sem_head(y), self.state_head(y)
+        else:
+            y = self.decoder(f, ws)
+            ls, lt = self.sem_head(y), self.state_head(y)
         if ls.shape[-2:] != ws:                       # decoders working below input resolution: resize the logits
             ls = F.interpolate(ls, size=ws, mode="bilinear", align_corners=False)
             lt = F.interpolate(lt, size=ws, mode="bilinear", align_corners=False)
@@ -349,6 +354,7 @@ def evaluate(model, items, device, amp, surfaces: Surfaces, overlay_dir=None, n_
        overlay_ids: save overlays for exactly these photo ids (instead of the first n_overlay)."""
     model.eval()
     sem_c, st_c = Confusion(N_SEM), Confusion(surfaces.n_state)
+    nonfinite_px = 0                                          # pixels whose logits / probabilities are NaN or Inf
     photo_rows = []                                           # one row per photo x target: lets any subset be re-scored later
     per = defaultdict(lambda: defaultdict(list))
     img_rows = defaultdict(lambda: defaultdict(list))
@@ -362,6 +368,7 @@ def evaluate(model, items, device, amp, surfaces: Surfaces, overlay_dir=None, n_
                 pst = torch.softmax(lt.float(), 1)
             else:
                 ls, pst = predict(model, x.to(device), [items[int(i)] for i in idx])
+            nonfinite_px += int((~torch.isfinite(pst).all(1) | ~torch.isfinite(ls).all(1)).sum())   # argmax would call them class 0
             ps = ls.argmax(1).cpu().numpy()
             pt = pst.argmax(1).cpu().numpy()
             conf = pst.max(1).values.cpu().numpy()                  # per-pixel confidence of the state prediction
@@ -421,7 +428,7 @@ def evaluate(model, items, device, amp, surfaces: Surfaces, overlay_dir=None, n_
     sem_iou, st_iou = sem_c.iou(), st_c.iou()
     present = [v for v in sem_iou if v is not None]
     inst_ious = [v for v in st_iou[:surfaces.occ] if v is not None]
-    out = {"state_iou": dict(zip(surfaces.class_names, st_iou)),
+    out = {"nonfinite_px": nonfinite_px, "state_iou": dict(zip(surfaces.class_names, st_iou)),
            "state_miou_install": float(np.mean(inst_ious)) if inst_ious else None,
            "semantic_iou": dict(zip(("wall", "floor", "ceiling", "stud", "hvac", "materials", "tools", "person"), sem_iou)),
            "semantic_miou_present": float(np.mean(present)) if present else None, "photos": len(items)}
