@@ -27,7 +27,7 @@
 
 ## 시스템 설계와 구현 계획
 
-**기준: 2026년 10월 23일 · 비전 파이프라인 구현 완료, 학습 데이터 확장 중**
+**기준: 2026년 10월 28일 · 현장 4곳 라벨 완료, 현장 단위 교차검증(LOSO) 본 실험 진행 중**
 
 초기 계획(5클래스 DeepLabv3+ 분할, Grounding DINO → SAM 2.1 마스크 초안)은 10월 초 실행 확인까지만 하고 접었습니다.
 지금은 **"관측 가능한 영역 안에서 얼마나 설치됐는지"** 를 사람이 검수한 라벨로 학습하는 아래 파이프라인으로 바뀌었고, 코드는 전부 `src/vision/state_pipeline/`에 있습니다.
@@ -38,18 +38,22 @@
              ─▶ [2차] vp auto      구도(view) 묶기 · ROI 초안 · 카메라 위치/흔들림 검사 · 표본 · 상태 라벨 초안
              ─▶ [검수] vp review   브라우저 검수 화면(할 일 목록 + 편집 화면): 구도 · 대상 · ROI · 설치 상태 라벨 승인
              ─▶ [export]           이미지 + semantic / target / visibility / state 마스크 + train/val/test 분할
-             ─▶ [학습] train_quick  동결 인코더(ConvNeXt, timm) + U-Net/UPerNet/Linear 디코더, 헤드 2개(물체 8클래스 / 설치 상태 4클래스)
-             ─▶ [추론] infer_quick  사진 → 상태 맵 → ROI별 설치율 → 일별 진행률 · 이벤트 → vision_output.json  ─▶ 에이전트(보고서)
+             ─▶ [학습] train/loso  동결 DINOv2 ViT-B/14 + MLP / UPerNet / DPT 디코더(Linear 하한선),
+                                   헤드 2개(물체 8클래스 / 설치 상태 6클래스: 벽·천장 미설치·설치, 가림, 대상 아님)
+             ─▶ [추론]             사진 → 상태 맵 → ROI별 설치율 → TTA · 작은 ROI 확대 · 가시성 인지 인과 보정(VCC)
+                                   → 일별 진행률 · 철거 의심 표시 → vision_output.json  ─▶ 에이전트(보고서)
 ```
 
 | 항목 | 상태 |
 | --- | --- |
-| 전처리 · 검수 · export · 학습 · 추론 코드 | 구현 완료, 단위 테스트 통과 (vision_preprocessing 78 · qa_v3 83 · qa_v2 42) |
-| 현장 A (고정 카메라) | 라벨링 완료: 사진 399장(train 256 / val 58 / test 85) + 전파 라벨 490장. 벽 2면 |
-| 현장 C (카메라를 자주 옮긴 현장) | 구도 51개 · ROI 전부 승인 · 앵커 라벨 승인. 1차 export 88장, 자동 초안 189장 검수 중. 벽 4면 + 천장 |
-| 현장 B · D | 설정만 준비 |
-| 모델 (현장 A test, 사람 라벨만) | 설치 상태 mIoU 0.952, ROI 설치율 MAE 0.0043, 사진 단위 MAE 0.027 |
+| 전처리 · 검수 · export · 학습 · 추론 코드 | 구현 완료, 단위 테스트 통과 (vision_preprocessing 98 · qa_v3 83 · qa_v2 42) |
+| 데이터 (현장 4곳, 익명 SITE_A~D) | 사람 검수 라벨 A 397장(+ 전파 라벨 490장) · B 74장 · C 88장 · D 30장. 벽 2~6면, B·C·D는 천장 포함 |
+| 실험 설계 | 현장 하나씩을 시험용으로 비우는 현장 단위 교차검증: 4 fold × 시드 3개 × 디코더 3종 + Linear 하한선 = 40회. 분할 · 지표 · 통계 방법은 실행 전에 고정 |
+| 진행 상황 (10/28) | 재현성 비교 1회 완료(UPerNet, SITE_B 시험, 시드 0): 설치 상태 mIoU 0.771, 벽 설치율 MAE 0.045, VCC 적용 시 0.038. 실행 1회 약 2.7시간. 본 실험 진행 중 |
 | 보고서 에이전트 | `vision_output.json` 을 입력으로 하는 Agentic AI 파트와 연동 중 |
+
+실험 규격은 [`PROTOCOL.md`](src/vision/state_pipeline/vision_preprocessing/train/loso/PROTOCOL.md), 실행 방법(데이터 준비 · 명령어 · 결과 저장)은
+[`DATA_SETUP.md`](src/vision/state_pipeline/vision_preprocessing/train/loso/DATA_SETUP.md)에 있습니다.
 
 사용 방법은 [`src/vision/state_pipeline/README.md`](src/vision/state_pipeline/README.md), 새 현장 추가는
 [`NEW_SITE_GUIDE_ko.md`](src/vision/state_pipeline/vision_preprocessing/docs/NEW_SITE_GUIDE_ko.md), 설계 결정과 데이터 계약은
@@ -64,7 +68,7 @@
 
 ## 협업 공간
 
-**[Notion 대시보드 바로가기](https://app.notion.com/p/3db226595aca8059af0df02fe2d5a3eb)**
+**[Notion 팀 페이지 바로가기](https://app.notion.com/p/1-8c15b79a9db5824eaf7a0103c8552003)**
 
 주요 일정 관리, 업무 배분, 회의 안건 정리와 회의록 작성은 Notion에서 진행합니다. GitHub에서는 코드와 프로젝트 문서를 관리합니다.
 
@@ -72,9 +76,7 @@
 
 | 공간 | 용도 |
 | --- | --- |
-| [Notion 대시보드](https://app.notion.com/p/3db226595aca8059af0df02fe2d5a3eb) | 일정·안건·업무 확인 |
-| [Notion 회의록](https://app.notion.com/p/3d9226595aca8079805ceed26a5f605f) | 회의 내용·결정 사항·후속 업무 작성 |
-| [안건 자유게시판](https://app.notion.com/p/3db226595aca8076a52dc6aad11c8002) | 다음 회의에서 논의할 질문과 아이디어 등록 |
+| [Notion 팀 페이지](https://app.notion.com/p/1-8c15b79a9db5824eaf7a0103c8552003) | 일정·업무 배분, 회의록(결정 사항·후속 업무), 다음 회의 안건 게시판 |
 
 ## 저장소 구성
 

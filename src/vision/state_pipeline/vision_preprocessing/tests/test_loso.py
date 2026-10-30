@@ -222,6 +222,33 @@ class TestTrainReport(unittest.TestCase):
                   "confusion_state_test.csv", "DONE.json"):
             self.assertTrue((a / f).exists(), f)
 
+    def test_health_record_and_failed_runs_are_kept(self):
+        from unittest import mock
+        from vision_preprocessing.train.loso import trainer
+        from vision_preprocessing.train.loso.cli import run
+        from vision_preprocessing.train.loso.common import read_csv
+        a = self._train(self.tmp / "rh")
+        done = json.loads((a / "DONE.json").read_text(encoding="utf-8"))
+        self.assertEqual(done["health"]["problems"], [])
+        self.assertIn("skipped_steps", read_csv(a / "epochs.csv")[0])
+        cfg = json.loads((a / "config.json").read_text(encoding="utf-8"))
+        self.assertFalse(cfg["numerics"]["decoder_fp32"])                     # mlp stays in AMP; dpt is FP32
+        res = self.tmp / "rf"
+        with mock.patch.object(trainer, "_health", return_value={"problems": ["forced"], "skipped_steps": 0}):
+            with self.assertRaises(SystemExit) as e:
+                self._train(res)
+        self.assertEqual(e.exception.code, 4)
+        d = res / "mlp/SITE_B/seed0"
+        self.assertTrue((d / "FAILED.json").exists())
+        self.assertFalse((d / "DONE.json").exists())
+        self.assertTrue((d / "final.pt").exists())                            # kept for diagnosis
+        with self.assertRaises(SystemExit):                                   # never silently retrained
+            self._train(res)
+        rc = run(self.w["local"], ["mlp"], folds=["SITE_B"], seeds=[0], protocol_path=self.w["protocol"],
+                 expected_file=self.w["expected"], extra=["--no-pretrained", "--limit", "8"], results=res)
+        self.assertEqual(rc, 1)                                               # skipped and reported, no subprocess
+        self.assertFalse((d / "DONE.json").exists())
+
     def test_runner_report_figures(self):
         from vision_preprocessing.train.loso.cli import pack, plan, run, status
         from vision_preprocessing.train.loso.common import load_protocol
@@ -249,6 +276,76 @@ class TestTrainReport(unittest.TestCase):
         names = zipfile.ZipFile(z).namelist()
         self.assertFalse(any(n.endswith(".jpg") or n.endswith(".pt") for n in names))     # no photos / weights by default
         self.assertTrue(any(n.endswith("metrics.json") for n in names))
+
+
+
+@unittest.skipUnless(HAVE, "torch / timm not installed")
+class TestNumerics(unittest.TestCase):
+    """2026-10-30 fix (PROTOCOL.md section 9): read-only gradient norm, skipped non-finite steps, FP32 DPT head, FAILED.json."""
+
+    def test_grad_norm_is_read_only_and_matches_clip(self):
+        from vision_preprocessing.train.loso.trainer import _grad_norm
+        torch.manual_seed(0)
+        ps = [torch.nn.Parameter(torch.randn(5, 3)), torch.nn.Parameter(torch.randn(7))]
+        for p in ps:
+            p.grad = torch.randn_like(p)
+        before = [p.grad.clone() for p in ps]
+        n = _grad_norm(ps)
+        self.assertTrue(all(torch.equal(p.grad, b) for p, b in zip(ps, before)))          # gradients untouched
+        ref = float(torch.nn.utils.clip_grad_norm_(ps, float("inf")))
+        self.assertAlmostEqual(n, ref, places=5)
+        self.assertTrue(all(torch.equal(p.grad, b) for p, b in zip(ps, before)))          # clip with inf multiplies by 1.0
+
+    def test_overflowing_norm_no_longer_writes_nan(self):
+        """finite gradients whose L2 norm overflows: clip_grad_norm_(.., inf) turned them into NaN (old code)."""
+        from vision_preprocessing.train.loso.trainer import _grad_norm
+        p = torch.nn.Parameter(torch.ones(2))
+        p.grad = torch.full((2,), 1e20)
+        self.assertEqual(_grad_norm([p]), float("inf"))
+        self.assertTrue(bool(torch.isfinite(p.grad).all()))            # the trainer now skips this step
+        q = torch.nn.Parameter(torch.ones(2))
+        q.grad = torch.full((2,), 1e20)
+        torch.nn.utils.clip_grad_norm_([q], float("inf"))
+        self.assertFalse(bool(torch.isfinite(q.grad).all()))           # what the old call did
+
+    def test_health_flags_broken_runs(self):
+        from vision_preprocessing.train.loso.trainer import _health
+        m = torch.nn.Linear(2, 2)
+        ok = _health(m, [{"skipped_steps": "3", "amp_skipped_steps": "20"}], {"val": {"nonfinite_px": 0}, "test": {"nonfinite_px": 0}},
+                     20000)
+        self.assertEqual(ok["problems"], [])                                       # AMP calibration skips are normal
+        self.assertEqual((ok["skipped_steps"], ok["amp_skipped_steps"], ok["other_skipped_steps"]), (23, 20, 3))
+        self.assertEqual(_health(m, [{"amp_skipped_steps": 40}], {}, 1000)["problems"], [])   # 4% but under the 50 floor
+        self.assertTrue(_health(m, [{"amp_skipped_steps": 150, "skipped_steps": 60}], {}, 20000)["problems"])  # > 1% and > 50
+        self.assertTrue(_health(m, [], {"test": {"nonfinite_px": 5}}, 1000)["problems"])
+        with torch.no_grad():
+            m.weight[0, 0] = float("nan")
+        self.assertEqual(_health(m, [], {}, 1000)["nonfinite_weight_tensors"], 1)
+        self.assertEqual(_health(m, [{}], {}, 0)["skipped_steps"], 0)                     # old epochs.csv rows: no column
+
+    def test_stale_dpt_detection(self):
+        from vision_preprocessing.train.loso.progress import run_state, stale_dpt
+        d = Path(tempfile.mkdtemp(prefix="stale_"))
+        try:
+            for cfg, want in (({"identity": {"model": "dpt"}}, True),
+                              ({"identity": {"model": "dpt"}, "numerics": {"decoder_fp32": True}}, False),
+                              ({"identity": {"model": "mlp"}}, False), ({"identity": {"model": "linear"}}, False)):
+                cfg["protocol"] = {"decoder_of": {"linear": "probe"}}
+                (d / "config.json").write_text(json.dumps(cfg), encoding="utf-8")
+                self.assertEqual(stale_dpt(d), want, cfg)
+                self.assertEqual(run_state(d, 15)[0] == "stale", want)
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_dpt_head_runs_fp32_under_autocast(self):
+        from vision_preprocessing.train.train_quick import TwoHeadSeg
+        x = torch.randn(1, 3, 56, 84)
+        for dec, want in (("dpt", torch.float32), ("mlp", torch.bfloat16)):
+            m = TwoHeadSeg("vit_small_patch14_reg4_dinov2.lvd142m", dec, pretrained=False, n_state=6).eval()
+            with torch.no_grad(), torch.autocast(device_type="cpu", dtype=torch.bfloat16):
+                ls, lt = m(x)
+            self.assertEqual(lt.dtype, want, dec)
+            self.assertEqual(tuple(lt.shape), (1, 6, 56, 84))
 
 
 if __name__ == "__main__":
