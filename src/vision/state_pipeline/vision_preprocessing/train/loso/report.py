@@ -51,6 +51,9 @@ def find_runs(roots, P=None, allow_test_runs=False, expected_file=None):
             why = "test run (epochs / limit / no-pretrained)"
         elif exp and exp.get(ident.get("fold")) != ident.get("fold_digest"):
             why = "fold lists differ from expected_digests.json"
+        elif (cfg.get("protocol", {}).get("decoder_of", {}).get(ident.get("model"), ident.get("model")) == "dpt"
+              and not (cfg.get("numerics") or {}).get("decoder_fp32")):
+            why = "DPT trained before the FP32 fix (2026-10-30, PROTOCOL.md section 9)"
         if why:
             log(f"skipped ({why}): {d}")
             continue

@@ -61,6 +61,7 @@ def predict(model, img: Image.Image, T, device, slot=None):
     with torch.no_grad(), torch.autocast(device_type=device.type, enabled=device.type == "cuda"):
         _, ls = model(t[None].to(device))
     p = torch.softmax(ls.float(), 1)[0]
+    bad = (~torch.isfinite(p).all(0)).cpu().numpy()          # NaN / Inf pixels: argmax would call them class 0 (not installed)
     conf, state = p.max(0)
     state = state.cpu().numpy().astype(np.uint8)
     n = p.shape[0]
@@ -69,7 +70,10 @@ def predict(model, img: Image.Image, T, device, slot=None):
         m = np.full(n, 3, np.uint8)
         m[2 * slot], m[2 * slot + 1], m[occ], m[nt] = 0, 1, 2, 3
         state = m[state]
-    return x, state, conf.cpu().numpy()
+    conf = conf.cpu().numpy()
+    if bad.any():                                            # neither installed nor not installed: left out of the ratio
+        state[bad], conf[bad] = 255, 0.0
+    return x, state, conf
 
 
 def overlay(x, state, roi, path):
