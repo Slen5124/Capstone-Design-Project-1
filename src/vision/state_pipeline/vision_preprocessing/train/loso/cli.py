@@ -10,7 +10,8 @@
 
 `run` checks the data first, then trains every (model, seed, fold) that has no DONE.json yet - seed by seed, the models
 of protocol.run_last (linear) after all others. Interrupted? Run the same command again: finished runs are skipped and an
-unfinished one resumes after its last finished epoch."""
+unfinished one resumes after its last finished epoch. A run whose numbers broke (NaN / Inf) ends with FAILED.json instead
+of DONE.json and is skipped (and reported) by later `run`s until its folder is moved away."""
 from __future__ import annotations
 
 import argparse
@@ -23,7 +24,7 @@ from pathlib import Path
 
 from .common import (EXPECTED_DIGESTS_FILE, HERE, export_fingerprint, load_local, load_protocol, log, read_csv,
                      read_json, run_dir)
-from .progress import overall_line
+from .progress import overall_line, stale_dpt
 
 PKG_PARENT = HERE.parents[2]          # the folder that contains vision_preprocessing/
 
@@ -130,17 +131,20 @@ def status(local_path, models=None, protocol_path=None, results=None, folds=None
     res = Path(results or local["results"] or "results")
     todo = plan(P, models or P["models"], folds, seeds)
     rows, summ = overall(res, todo, P["train"]["epochs"])
-    names = {"done": "완료", "running": "진행 중", "paused": "중단됨", "todo": "대기"}
+    names = {"done": "완료", "running": "진행 중", "paused": "중단됨", "todo": "대기", "failed": "실패", "stale": "옛 DPT"}
     out = []
     for r in rows:
-        info = "" if r["state"] == "done" else f"남은 {fmt_dur(r['remaining'])}" if r["remaining"] is not None else ""
+        info = ("" if r["state"] == "done" else "수치 오류 (FAILED.json)" if r["state"] == "failed"
+                else "FP32 수정 전 결과, 폴더를 옮긴 뒤 다시 학습" if r["state"] == "stale"
+                else f"남은 {fmt_dur(r['remaining'])}" if r["remaining"] is not None else "")
         if not quiet:
             print(f"{r['model']:8s} {r['fold']:7s} seed{r['seed']}  {bar(r['pct'], 20)} {r['pct'] * 100:5.1f}%  "
                   f"{names.get(r['state'], r['state']):6s} {info}")
         out.append((r["model"], r["fold"], r["seed"], r["state"], info))
     if not quiet:
         print(overall_line(summ))
-        print("(중단됨 = 진행 기록이 30분 넘게 갱신되지 않음. 같은 run 명령을 다시 치면 이어서 진행)")
+        print("(중단됨 = 진행 기록이 30분 넘게 갱신되지 않음. 같은 run 명령을 다시 치면 이어서 진행. "
+              "실패 = NaN / Inf로 끝난 실행, 폴더를 옮겨야 다시 학습)")
     return out
 
 
@@ -174,13 +178,22 @@ def run(local_path, models, folds=None, seeds=None, workers=None, keep_going=Fal
     local_path = Path(local_path).resolve()
     res = Path(results or local["results"] or "results").resolve()
     todo = plan(P, models, folds, seeds)
-    log(f"{len(todo)} runs planned ({sum(1 for m, f, s in todo if (run_dir(res, m, f, s) / 'DONE.json').exists())} already done)")
+    log(f"{len(todo)} runs planned ({sum(1 for m, f, s in todo if (run_dir(res, m, f, s) / 'DONE.json').exists() and not stale_dpt(run_dir(res, m, f, s)))} already done)")
     env = dict(os.environ, CUBLAS_WORKSPACE_CONFIG=":4096:8", PYTHONHASHSEED="0", PYTHONUNBUFFERED="1",
                PYTHONIOENCODING="utf-8")
     failed = []
     for m, f, s in todo:
         d = run_dir(res, m, f, s)
+        if stale_dpt(d):                                  # finished or half-trained with the old code: never mixed
+            failed.append((m, f, s))
+            log(f"STALE {m} / {f} / seed {s}: DPT trained before the FP32 fix (PROTOCOL.md section 9) - excluded from "
+                f"reports; move {d} away (e.g. to a results_pre_fix folder) and run again")
+            continue
         if (d / "DONE.json").exists():
+            continue
+        if (d / "FAILED.json").exists():                  # numeric failure kept for diagnosis; never silently retrained
+            failed.append((m, f, s))
+            log(f"skip {m} / {f} / seed {s}: FAILED earlier (see {d / 'FAILED.json'}); move the folder away to retry")
             continue
         d.mkdir(parents=True, exist_ok=True)
         cmd = [sys.executable, "-m", "vision_preprocessing.train.loso", "train", "--local", str(local_path), "--model", m,
@@ -199,6 +212,8 @@ def run(local_path, models, folds=None, seeds=None, workers=None, keep_going=Fal
         if rc != 0:
             failed.append((m, f, s))
             log(f"FAILED {m} / {f} / seed {s} (exit {rc}) - see {d / 'stdout.txt'}")
+            if rc == 4:                                     # numeric failure, recorded in FAILED.json: go on with the rest
+                continue
             if not keep_going:
                 return 1
     _, summ = _overall(res, todo, P)
@@ -214,7 +229,7 @@ def pack(local_path, out_zip, models=None, with_overlays=False, with_weights=Fal
     keep = {".json", ".csv", ".txt", ".jsonl"}
     n = 0
     with zipfile.ZipFile(out_zip, "w", zipfile.ZIP_DEFLATED) as z:
-        for done in sorted(res.rglob("DONE.json")):
+        for done in sorted(list(res.rglob("DONE.json")) + list(res.rglob("FAILED.json"))):   # failed runs travel too
             d = done.parent
             rel = d.relative_to(res)
             if models and rel.parts[0] not in models:

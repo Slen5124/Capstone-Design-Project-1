@@ -14,7 +14,9 @@ Files in the run folder (results/<model>/<fold>/seed<k>/):
     confusion_state_<split>.csv, confusion_object_<split>.csv
     resources.json       trainable / frozen parameters, inference speed, peak memory, epoch time
     overlays/<split>/    photo | label | prediction for the pre-chosen overlay ids
-    DONE.json            written last; a run with DONE.json is skipped by `run`"""
+    DONE.json            written last; a run with DONE.json is skipped by `run`
+    FAILED.json          instead of DONE.json when the numbers broke (NaN / Inf weights or predictions, or more than
+                         1% of optimizer steps skipped as non-finite); the folder is kept for diagnosis and `run` skips it"""
 from __future__ import annotations
 
 import math
@@ -141,6 +143,45 @@ def _surf(r: dict, prefix: str) -> dict:
     return out
 
 
+NONFINITE_STEP_LIMIT = 0.01      # a run whose skipped (non-finite) optimizer steps exceed 1% of all steps is FAILED ...
+NONFINITE_STEP_FLOOR = 50        # ... and 50 steps (AMP's own scale calibration skips a few steps in every healthy run)
+
+
+def _grad_norm(params) -> float:
+    """total L2 norm of the gradients without touching them (what clip_grad_norm_(.., inf) returned, minus its in-place
+    multiply that turns every gradient into NaN when the norm overflows to Inf)."""
+    import torch
+    g = [p.grad.detach() for p in params if p.grad is not None]
+    if not g:
+        return 0.0
+    if hasattr(torch.nn.utils, "get_total_norm"):             # torch >= 2.6: the norm code clip_grad_norm_ itself uses
+        return float(torch.nn.utils.get_total_norm(g, 2.0))
+    return float(torch.linalg.vector_norm(torch.stack([torch.linalg.vector_norm(t, 2.0) for t in g]), 2.0))
+
+
+def _health(model, ep_rows, metrics, steps) -> dict:
+    """numeric health of a finished run -> {'problems': [...] (empty = healthy), counts}."""
+    import torch
+    bad = [k for k, t in model.state_dict().items()
+           if not k.startswith("encoder.") and t.is_floating_point() and not bool(torch.isfinite(t).all())]
+    def col(k):
+        return sum(int(float(r.get(k) or 0)) for r in ep_rows)
+    amp_skipped, other = col("amp_skipped_steps"), col("skipped_steps")
+    skipped = amp_skipped + other
+    px = {n: int((metrics.get(n) or {}).get("nonfinite_px") or 0) for n in ("val", "test")}
+    problems = []
+    if bad:
+        problems.append(f"{len(bad)} weight tensors contain NaN / Inf (e.g. {bad[0]})")
+    for n, v in px.items():
+        if v:
+            problems.append(f"{v} {n} pixels with NaN / Inf predictions")
+    if steps and skipped > max(NONFINITE_STEP_LIMIT * steps, NONFINITE_STEP_FLOOR):
+        problems.append(f"{skipped} of {steps} optimizer steps skipped as non-finite "
+                        f"(> {NONFINITE_STEP_LIMIT:.0%} and > {NONFINITE_STEP_FLOOR})")
+    return {"problems": problems, "nonfinite_weight_tensors": len(bad), "nonfinite_pred_px": px,
+            "skipped_steps": skipped, "amp_skipped_steps": amp_skipped, "other_skipped_steps": other, "steps": steps}
+
+
 def _slim(r: dict) -> dict:
     return {k: v for k, v in r.items() if k not in ("ratio_rows", "image_rows", "note", "photo_rows")}
 
@@ -216,6 +257,8 @@ def train_one(local_path: Path, model_name: str, fold_name: str, seed: int, resu
     if (out / "DONE.json").exists():
         log(f"{out} already done")
         return out
+    if (out / "FAILED.json").exists():
+        raise SystemExit(f"{out} failed earlier (see FAILED.json); move the folder away to train this run again")
     bundle = local["bundle"]
     fold = load_fold(bundle, fold_name)
     exclude = set(read_json(bundle / "exclusions.json", []) or [])
@@ -255,6 +298,9 @@ def train_one(local_path: Path, model_name: str, fold_name: str, seed: int, resu
     model.reset_trainable(seed)
     model = model.to(device)
     cfg["encoder_weights"] = _weights_hash(protocol["encoder"]) if pretrained else {"note": "random encoder (test run)"}
+    cfg["numerics"] = {"amp": amp, "decoder_fp32": bool(getattr(model.decoder, "fp32", False)),
+                       "grad_norm": "read-only (no clipping); a step with non-finite loss or gradient norm is skipped",
+                       "fail_if_nonfinite_steps_over": [NONFINITE_STEP_LIMIT, NONFINITE_STEP_FLOOR]}
     if state is None:
         write_json(out / "config.json", cfg)
         (out / "environment.txt").write_text("\n".join(_env_lines()) + "\n", encoding="utf-8")
@@ -282,6 +328,10 @@ def train_one(local_path: Path, model_name: str, fold_name: str, seed: int, resu
     scaler = torch.amp.GradScaler(device.type, enabled=amp)
     start_ep, gstep = 1, 0
     if state is not None:
+        old = read_json(out / "config.json", {}) or {}
+        if cfg["numerics"]["decoder_fp32"] and not (old.get("numerics") or {}).get("decoder_fp32"):
+            raise SystemExit(f"{resume} was trained before the FP32 decoder fix (PROTOCOL.md section 9); move the folder "
+                             "away and train this run from the start")
         model.load_state_dict(state["model"], strict=False)
         opt.load_state_dict(state["opt"])
         sched.load_state_dict(state["sched"])
@@ -311,6 +361,7 @@ def train_one(local_path: Path, model_name: str, fold_name: str, seed: int, resu
             torch.cuda.reset_peak_memory_stats()
         lr0, t0 = opt.param_groups[0]["lr"], time.time()
         acc = {"loss": 0.0, "loss_sem": 0.0, "loss_state": 0.0, "n": 0}
+        skipped = amp_skipped = 0                             # optimizer steps skipped: other non-finite / by AMP itself
         win = {"loss": 0.0, "loss_sem": 0.0, "loss_state": 0.0, "n": 0, "t": time.time()}
         for x, sem, st, ix in loader:
             x, sem, st = x.to(device), sem.to(device), st.to(device)
@@ -323,9 +374,19 @@ def train_one(local_path: Path, model_name: str, fold_name: str, seed: int, resu
             opt.zero_grad(set_to_none=True)
             scaler.scale(loss).backward()
             scaler.unscale_(opt)
-            gnorm = float(torch.nn.utils.clip_grad_norm_(trainable, float("inf")))
-            scaler.step(opt)
+            gnorm = _grad_norm(trainable)                     # read-only: clip_grad_norm_(.., inf) could write NaN into the
+            ok = math.isfinite(gnorm) and bool(torch.isfinite(loss))  # gradients when the norm itself overflowed
+            s0 = None
+            if ok:
+                scaler.step(opt)
+            elif scaler.is_enabled():
+                s0 = scaler.get_scale()
             scaler.update()
+            if not ok:                                        # AMP lowers its scale when it found Inf / NaN gradients;
+                if s0 is not None and scaler.get_scale() < s0:  # otherwise it is a finite gradient whose norm overflowed
+                    amp_skipped += 1                          # or a NaN loss without AMP - skipped here, not by AMP
+                else:
+                    skipped += 1
             sched.step()
             gstep += 1
             prog.step(ep, gstep - (ep - 1) * steps_per_epoch)
@@ -346,7 +407,7 @@ def train_one(local_path: Path, model_name: str, fold_name: str, seed: int, resu
         row = {"epoch": ep, "lr_start": lr0, "lr_end": opt.param_groups[0]["lr"],
                "loss": round(acc["loss"] / max(acc["n"], 1), 5), "loss_sem": round(acc["loss_sem"] / max(acc["n"], 1), 5),
                "loss_state": round(acc["loss_state"] / max(acc["n"], 1), 5), "sec_train": round(sec_train, 1),
-               "imgs_per_s": round(acc["n"] / max(sec_train, 1e-6), 2),
+               "imgs_per_s": round(acc["n"] / max(sec_train, 1e-6), 2), "skipped_steps": skipped, "amp_skipped_steps": amp_skipped,
                "gpu_peak_gb": round(torch.cuda.max_memory_allocated() / 2 ** 30, 2) if device.type == "cuda" else None}
         ev = {"epoch": ep}
         if ep % max(1, tp["eval_every"]) == 0 or ep == tp["epochs"]:
@@ -412,10 +473,17 @@ def train_one(local_path: Path, model_name: str, fold_name: str, seed: int, resu
         prog.set_phase("posteval")
         run_variants(model, split, device, amp, surfaces, protocol, out)
     total = prog.finish()
+    health = _health(model, ep_rows, metrics, gstep)
+    if health["problems"]:
+        write_json(out / "FAILED.json", {"run_key": run_key, "finished": time.strftime("%Y-%m-%dT%H:%M:%S"), "health": health,
+                                         "protocol_version": protocol["protocol_version"], "fold_digest": fold["digests"]["fold"]})
+        log(f"FAILED (numerics) -> {out}: {'; '.join(health['problems'])}")
+        raise SystemExit(4)
     write_json(out / "DONE.json", {"run_key": run_key, "finished": time.strftime("%Y-%m-%dT%H:%M:%S"),
                                    "train_minutes_this_session": round((time.time() - t_run) / 60, 1),
                                    "run_sec_total": round(total), "posteval_sec": round(time.time() - t_pe),
-                                   "protocol_version": protocol["protocol_version"], "fold_digest": fold["digests"]["fold"]})
+                                   "protocol_version": protocol["protocol_version"], "fold_digest": fold["digests"]["fold"],
+                                   "health": health})
     resume.unlink(missing_ok=True)
     log(f"done -> {out}")
     return out

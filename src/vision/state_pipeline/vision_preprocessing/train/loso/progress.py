@@ -152,11 +152,25 @@ def posteval_factor(protocol) -> float:
 
 
 # ------------------------------------------------------------------ overall (runner / status)
+def stale_dpt(d: Path) -> bool:
+    """a DPT run (finished or not) trained before the 2026-10-30 FP32 decoder fix: config.json has no numerics.decoder_fp32."""
+    cfg = read_json(d / "config.json")
+    if not cfg:
+        return False
+    model = (cfg.get("identity") or {}).get("model")
+    dec = (cfg.get("protocol") or {}).get("decoder_of", {}).get(model, model)
+    return dec == "dpt" and not (cfg.get("numerics") or {}).get("decoder_fp32")
+
+
 def run_state(d: Path, epochs: int):
     """-> (state, pct, remaining_sec or None, total_sec of a finished run or None)."""
+    if stale_dpt(d):                                  # will not run again until the folder is moved away
+        return "stale", 1.0, 0.0, None
     done = read_json(d / "DONE.json")
     if done:
         return "done", 1.0, 0.0, done.get("run_sec_total")
+    if (d / "FAILED.json").exists():                  # numeric failure: finished, will not run again by itself
+        return "failed", 1.0, 0.0, None
     pr = read_json(d / "progress.json")
     if pr:
         fresh = time.time() - float(pr.get("updated", 0)) < 30 * 60
