@@ -33,7 +33,7 @@
 지금은 **"관측 가능한 영역 안에서 얼마나 설치됐는지"** 를 사람이 검수한 라벨로 학습하는 아래 파이프라인으로 바뀌었고, 코드는 전부 `src/vision/state_pipeline/`에 있습니다.
 
 ```
-현장 사진 ZIP ─▶ SAM3 자동 분할 (사진마다 LabelMe JSON)
+현장 사진 ZIP ─▶ 자동 분할 초안 (사진마다 LabelMe 형식 폴리곤 JSON)
              ─▶ [1차] qa_v3        폴리곤 정리 · 중복 제거 · 대표 기준으로 벽/천장 보정
              ─▶ [2차] vp auto      구도(view) 묶기 · ROI 초안 · 카메라 위치/흔들림 검사 · 표본 · 상태 라벨 초안
              ─▶ [검수] vp review   브라우저 검수 화면(할 일 목록 + 편집 화면): 구도 · 대상 · ROI · 설치 상태 라벨 승인
@@ -82,10 +82,7 @@
 
 | 경로 | 내용 |
 | --- | --- |
-| [`src/vision/state_pipeline/`](src/vision/state_pipeline/) | **현재 파이프라인.** 1차 전처리(`qa_v3`, `qa_v2`), 2차 전처리 · 검수 앱 · export · 학습 · 추론(`vision_preprocessing`) |
-| [`src/vision/preprocessing/`](src/vision/preprocessing/) | (보관) 초기 Grounding DINO → SAM 2.1 마스크 초안 코드. 현재는 SAM3 결과를 직접 사용하므로 쓰지 않음 |
-| [`src/vision/README.md`](src/vision/README.md), `train_smoke.py`, `dataset.py` | (보관) 초기 5클래스 DeepLabv3+ 실행 확인. 현재 학습 코드는 `state_pipeline/vision_preprocessing/train/` |
-| [`docs/experiments/`](docs/experiments/) | 실험 기록 (10-05 DeepLabv3+ smoke는 초기 계획의 기록) |
+| [`src/vision/state_pipeline/`](src/vision/state_pipeline/) | **비전 파이프라인.** 1차 전처리(`qa_v3`, `qa_v2`), 2차 전처리 · 검수 앱 · export · 학습 · 추론(`vision_preprocessing`) |
 | [`docs/planning/`](docs/planning/) | 현재 시공 분석 과제의 구조·일정 분석 및 구현 기획 |
 | [`docs/meetings/`](docs/meetings/) | Notion과 동일하게 관리하는 Markdown 회의록 |
 | [`docs/proposal/`](docs/proposal/) | 최초 배정 과제(고객 동선·Zone 분석) 제안서 요약. 방향 전환 이전의 배경 자료 |

@@ -32,7 +32,7 @@
 | `test_rag_answer.py` | 검색된 근거를 Qwen에 전달하여 영어 답변 생성 |
 | `requirements.txt` | Python 패키지 의존성 목록 |
 
-기존 `src/llm_agent_module/rag_agent.py`는 별도의 Mock 구현이며, 본 예제 실행에는 사용하지 않습니다.
+이 예제는 단독으로 실행됩니다.
 
 ### 현재 구현된 RAG 흐름
 

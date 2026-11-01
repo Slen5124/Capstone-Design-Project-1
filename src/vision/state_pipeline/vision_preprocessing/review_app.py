@@ -84,7 +84,7 @@ class ReviewService:
         self.by_id = {im["image_id"]: im for im in self.images}
         self.reader = SourceReader(ctx)
         self.lock = threading.RLock()          # observations / background refresh
-        self.read_lock = threading.RLock()     # the shared ZIP reader (photos, SAM3 JSON) - not thread-safe
+        self.read_lock = threading.RLock()     # the shared ZIP reader (photos, draft polygon JSON) - not thread-safe
         self.cache_dir = ctx.run_dir / "cache" / "display"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self._obs = None

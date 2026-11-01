@@ -82,7 +82,7 @@ def readme_text(new_name: str, old_name: str, info: dict) -> str:
     rows = "\n".join(f"| {z} | {n:,} |" for z, n in sorted(info["per_zip"].items()))
     return f"""# 1차 결과 (qa_v3 자동 전처리) — {new_name}
 
-이 폴더는 **1차 단계(qa_v3 `auto_preprocess.py`) 결과 전체**입니다. SAM3 JSON 폴리곤을 기준사진과 맞춰
+이 폴더는 **1차 단계(qa_v3 `auto_preprocess.py`) 결과 전체**입니다. 초안 폴리곤 JSON을 기준사진과 맞춰
 자동 보정한 **물체 폴리곤 초안**(wall / floor / ceiling / person …)과 사진별 품질 분류가 들어 있습니다.
 사람이 확인한 결과가 아닙니다 (`human_confirmed=false`). 원래 폴더 이름: `{old_name}`.
 

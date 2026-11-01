@@ -55,7 +55,7 @@ def _shapes(dx=0, dy=0):
         ("unidentifiable", [[300, 100], [330, 100], [330, 120], [300, 120]]),
     ]
     return [{"label": l, "points": mv(p), "group_id": None, "shape_type": "polygon", "flags": {},
-             "description": "sam3_auto", "score": 0.9} for l, p in shapes]
+             "description": "auto_draft", "score": 0.9} for l, p in shapes]
 
 
 def build(root: Path, n_days: int = 12, move_after_day: int = 8) -> dict:

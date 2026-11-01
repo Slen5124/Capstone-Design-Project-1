@@ -191,5 +191,32 @@ loso_results*/
 .venv312/
 src/llm_agent_module/examples/data/
 
-# Reference papers that the team commits on purpose (see docs/references/README.md)
-!docs/references/papers/*.[pP][dD][fF]
+
+# Removed from the public repository on 2026-11-01 (local copies only, never re-add):
+# license-restricted tools, legacy experiments, server/site details, third-party PDFs
+batch_preprocess_sam.py
+src/batch_preprocess_sam.py
+src/vision/preprocessing/
+src/vision/train_smoke.py
+src/vision/dataset.py
+src/vision/requirements-smoke.txt
+src/vision/README.md
+src/train_unet.py
+src/train_unet_server.py
+src/train_res50unet_server.py
+src/evaluate_epochs.py
+src/main_pipeline.py
+src/vision_module/
+src/llm_agent_module/__init__.py
+src/llm_agent_module/rag_agent.py
+process.md
+unet_use.md
+teaching.md
+project_context.md
+technical_architecture_and_interface.md
+GPU_Server_Commands.md
+SERVER_RUN_GUIDE.md
+gpu_manual.pdf
+docs/works.md
+docs/experiments/2026-10-05-vision-smoke.md
+docs/references/papers/*.[pP][dD][fF]
