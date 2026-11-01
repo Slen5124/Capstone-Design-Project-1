@@ -1,8 +1,7 @@
-# Vision Module Requirements (PyTorch, YOLOv8, OpenCV)
+# Vision Module Requirements (PyTorch, OpenCV)
 torch>=2.0.0
 torchvision
 torchaudio
-ultralytics # YOLOv8
 opencv-python
 
 # LLM & RAG Agent Module Requirements (Ollama, ChromaDB, LangChain)

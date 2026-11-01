@@ -30,7 +30,7 @@ from .runctx import RunContext, atomic_write_json
 
 DEFAULTS = {"max_side": 960, "same_below": 0.005, "shifted_above": 0.015, "min_inliers": 25, "dark_below": 35,
             "min_segment": 3, "trim_max_photos": 8, "reference_outlier_share": 0.7, "peers": 5,
-            "status": "unvalidated defaults (LV 2026-10-21: 9 real moves found, lighting-only differences cleared by pass 2)"}
+            "status": "unvalidated defaults (SITE_C 2026-10-21: 9 real moves found, lighting-only differences cleared by pass 2)"}
 DISPLAY_SIDE = 1600
 
 

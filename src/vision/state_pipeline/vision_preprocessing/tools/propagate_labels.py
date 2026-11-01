@@ -4,7 +4,7 @@ Rule ("sandwich"): two consecutive approved labels of the same target in the sam
 installed ratio within --tol of each other and at most --max-gap-h apart. Photos taken between them in that view
 (well lit, no camera drift that day, not already labelled) get that target's installed / not-installed pixels
 copied from the two anchors (pixel kept where the anchors agree, or where only one of them sees it). Occluders are
-re-detected per photo (its own SAM3 objects), so moving people / materials are not copied. Test-split anchors are
+re-detected per photo (its own draft object polygons), so moving people / materials are not copied. Test-split anchors are
 never used, so the test set stays human-labelled only.
 
     plan   (reads labels and run metadata only)
@@ -260,7 +260,7 @@ def build(run: Path, plan_path: Path, name=None, path_map=None, reuse_draft: Pat
         raise SystemExit("plan has no selected photos")
     name = name or f"{utc_stamp()}_propagated"
     run_dir = Path(run)
-    if reuse_draft:            # photos + SAM3 object masks already rendered by an earlier build (no ZIP reading)
+    if reuse_draft:            # photos + draft object masks already rendered by an earlier build (no ZIP reading)
         src = Path(reuse_draft)
         rep = json.loads((src / "export_report.json").read_text(encoding="utf-8"))
     else:

@@ -222,7 +222,7 @@ only dependent caches).
   days), large_increase (≥ +0.3), decrease_suspect, long_gap (> 3 days, never interpolated). Output `vision_output/1.0`
   (schema + example in the agent folder of the context package).
 - `propagate_labels plan|build`: sandwich rule (see A.7); ROI from the anchor's target mask; occluders recomputed from the
-  photo's own SAM3 semantics (sem 5/6/7 → visibility 2, state 255); `label_source: propagated`.
+  photo's own draft object classes (sem 5/6/7 → visibility 2, state 255); `label_source: propagated`.
 
 ## B.5 Decisions and defaults (user-approved)
 Image-id stabilisation: left as is. Drift: ask the user to redraw above 1.5%. Shakes: report only if severe.

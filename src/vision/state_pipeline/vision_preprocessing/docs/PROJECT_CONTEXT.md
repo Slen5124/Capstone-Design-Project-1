@@ -8,7 +8,7 @@
 **벽별 석고보드 설치율**을 매일 계산하고, 그 값을 DB 에 쌓아 **영어 질의응답·주간 보고서**를 만드는 시스템.
 
 ```
-[1 전처리] SAM3 자동 분할(초안) → qa_v3 1차 자동 보정 → vision_preprocessing 2차(구도·ROI·상태 라벨, 사람 검수) → 학습 데이터
+[1 전처리] 자동 분할 초안(LabelMe 형식 폴리곤 JSON) → qa_v3 1차 자동 보정 → vision_preprocessing 2차(구도·ROI·상태 라벨, 사람 검수) → 학습 데이터
 [2 모델]   고정 인코더(ConvNeXt-T / DINOv3) + 디코더 U-Net vs UPerNet (+Linear 기준선), 헤드: 물체 8종 · 상태 4종
 [3 추론]   사진 → 상태 지도 → 측정 영역(ROI) → 보이는 영역 중 설치율 → vision_output.json (vision_output/1.0)
 [4 백엔드] PostgreSQL + FastAPI (AWS Lightsail): 일일 관측 저장 · 변화 검증 · 공정표 DB (SITE_A 작업 79개)
@@ -35,7 +35,7 @@
 
 ## 4. 논문 방향 (사용자 확정)
 **비교 연구가 중심**, VLM 은 "되면" 라벨링 보조로만 (VLM 보다 좋다고 주장하지 않음).
-1. 전처리: DINO + SAM2.1 vs SAM3 (정성 비교 수행함)
+1. 전처리: 자동 분할 초안 방식 비교 (정성 비교 수행함)
 2. 디코더: U-Net vs UPerNet (+ Linear 기준선), 같은 고정 인코더
 3. 적은 라벨 학습: 사람 라벨만 vs 안정 구간 라벨 전파 포함
 4. 지표: state mIoU, ROI 설치율 MAE, 교차 현장(SITE_A→SITE_C) 오차
