@@ -1,4 +1,4 @@
-"""Quick training check: frozen pretrained encoder + decoder (linear / unet / upernet) + two heads.
+"""Quick training check: frozen pretrained encoder + decoder (DINOv2 + UPerNet; optional research decoders) + two heads.
 
     semantic head : 8 object classes  (semantic_masks, automatic pseudo-labels -> lower loss weight)
     state head    : 4 classes  0 not_installed / 1 installed   (state_masks/<activity>, human-approved)
@@ -30,7 +30,7 @@ Reads one or more export folders made by `vp auto` (exports/<..>_train_full). Wr
 This is a sanity check of the architecture on the data we have. Scores from a single site say nothing about
 accuracy on a new site (that needs a held-out city).
 
-    python train_quick.py --export "<...>\\exports\\20261014T062524Z_bcf8_train_full" --decoder unet
+    python train_quick.py --export "<...>\\exports\\20261014T062524Z_bcf8_train_full" --decoder upernet
     python train_quick.py --list-encoders            (which DINOv3 / DINOv2 / ConvNeXt weights timm offers)
 """
 from __future__ import annotations
@@ -137,26 +137,6 @@ def conv_gn(i, o, k=1):
     return nn.Sequential(nn.Conv2d(i, o, k, padding=k // 2, bias=False), nn.GroupNorm(32, o), nn.ReLU(inplace=True))
 
 
-class UNetDecoder(nn.Module):
-    def __init__(self, chans, out=(256, 128, 64, 32, 16)):
-        super().__init__()
-        c4, c3, c2, c1 = chans[3], chans[2], chans[1], chans[0]
-        self.b1 = nn.Sequential(conv_bn(c4 + c3, out[0]), conv_bn(out[0], out[0]))
-        self.b2 = nn.Sequential(conv_bn(out[0] + c2, out[1]), conv_bn(out[1], out[1]))
-        self.b3 = nn.Sequential(conv_bn(out[1] + c1, out[2]), conv_bn(out[2], out[2]))
-        self.b4 = nn.Sequential(conv_bn(out[2], out[3]), conv_bn(out[3], out[3]))
-        self.b5 = nn.Sequential(conv_bn(out[3], out[4]), conv_bn(out[4], out[4]))
-        self.out_ch = out[4]
-
-    def forward(self, f, size):
-        x = f[3]
-        for blk, skip in ((self.b1, f[2]), (self.b2, f[1]), (self.b3, f[0])):
-            x = F.interpolate(x, size=skip.shape[-2:], mode="bilinear", align_corners=False)
-            x = blk(torch.cat([x, skip], 1))
-        x = self.b4(F.interpolate(x, scale_factor=2, mode="bilinear", align_corners=False))
-        return self.b5(F.interpolate(x, size=size, mode="bilinear", align_corners=False))
-
-
 class UPerNetDecoder(nn.Module):
     def __init__(self, chans, ch=128, bins=(1, 2, 3, 6)):
         super().__init__()
@@ -195,7 +175,7 @@ class LinearDecoder(nn.Module):
         return F.interpolate(x, size=size, mode="bilinear", align_corners=False)
 
 
-DECODERS = ("unet", "upernet", "linear", "mlp", "dpt", "probe")
+DECODERS = ("upernet", "linear", "mlp", "dpt", "probe")
 
 
 def is_vit(encoder: str) -> bool:
@@ -243,7 +223,7 @@ class TwoHeadSeg(nn.Module):
             self.patch = self.encoder.feature_info.reduction()[0] if hasattr(self.encoder, "feature_info") else 14
             if decoder in VIT_NATIVE:                 # mlp / dpt / probe read the ViT blocks directly
                 self.adapter, chans = None, enc_ch
-            else:                                     # unet / upernet / linear want a CNN-like pyramid
+            else:                                     # upernet / linear want a CNN-like pyramid
                 self.adapter = ViTPyramid(enc_ch[0])
                 chans = self.adapter.out
         else:
@@ -260,7 +240,7 @@ class TwoHeadSeg(nn.Module):
         if self.vit and decoder in VIT_NATIVE:
             self.decoder = VIT_NATIVE[decoder](chans)
         else:
-            self.decoder = {"unet": UNetDecoder, "upernet": UPerNetDecoder, "linear": LinearDecoder, "mlp": MLPHead}[decoder](chans)
+            self.decoder = {"upernet": UPerNetDecoder, "linear": LinearDecoder, "mlp": MLPHead}[decoder](chans)
         self.sem_head = nn.Conv2d(self.decoder.out_ch, N_SEM, 1)
         self.state_head = nn.Conv2d(self.decoder.out_ch, n_state, 1)
 
@@ -608,9 +588,9 @@ def main(argv=None):
                     help="geo: + random scale 0.5-1.0, shift, horizontal flip (walls seen smaller / elsewhere)")
     ap.add_argument("--human-repeat", type=int, default=1,
                     help="repeat human-labelled training photos R times per epoch (they are a few % of a weak-label set)")
-    ap.add_argument("--encoder", default="convnext_tiny.fb_in22k",
-                    help="timm model name; DINOv3 ConvNeXt-Tiny once access is granted (see --list-encoders)")
-    ap.add_argument("--decoder", choices=DECODERS, default="unet")
+    ap.add_argument("--encoder", default="vit_base_patch14_reg4_dinov2.lvd142m",
+                    help="timm encoder name; defaults to DINOv2 ViT-B/14 with registers")
+    ap.add_argument("--decoder", choices=DECODERS, default="upernet")
     ap.add_argument("--epochs", type=int, default=30)
     ap.add_argument("--batch", type=int, default=4)
     ap.add_argument("--lr", type=float, default=1e-3)

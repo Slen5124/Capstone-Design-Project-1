@@ -223,3 +223,31 @@ docs/references/papers/*.[pP][dD][fF]
 
 # Institution-only source manual; keep the local original outside Git.
 /gpu_manual.pdf
+
+# Local virtual environments
+.venv-*/
+
+# Reviewed public-demo assets/templates only; private photos/reports remain excluded.
+!/prototype/public-demo/assets/cashwrap-board-example.jpg
+!/prototype/public-demo/assets/ceiling-example.jpg
+!/prototype/public-demo/assets/diffuser-example.jpg
+!/prototype/public-demo/assets/electrical-example.jpg
+!/prototype/public-demo/assets/floor-finish-example.jpg
+!/prototype/public-demo/assets/metal-panels-example.jpg
+!/prototype/public-demo/assets/preparation-example.jpg
+!/prototype/public-demo/assets/report-source.pdf
+!/prototype/public-demo/assets/sample-frame-after.jpg
+!/prototype/public-demo/assets/sample-frame-before.jpg
+!/prototype/public-demo/assets/sample-lighting.jpg
+!/prototype/public-demo/assets/sample-wall-analysis.jpg
+!/prototype/public-demo/assets/sample-wall-before.jpg
+!/prototype/public-demo/assets/sample-wall-current.jpg
+!/prototype/public-demo/assets/shop-drawings-example.jpg
+!/prototype/public-demo/assets/site-qr.png
+!/prototype/public-demo/assets/sprinkler-example.jpg
+!/prototype/public-demo/assets/wall-inspection-example.jpg
+!/prototype/public-demo/src/templates/00-site-overview.html
+!/prototype/public-demo/src/templates/01-hq-review.html
+!/prototype/public-demo/src/templates/02-field-submission.html
+!/prototype/public-demo/src/templates/03-weekly-report.html
+!/prototype/public-demo/src/templates/index.html

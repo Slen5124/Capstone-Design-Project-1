@@ -6,13 +6,13 @@
 
 ## 프로젝트 소개
 
-글로벌 리테일 매장의 현장 사진으로 시공 상태를 분석하고, 서버에 저장한 분석 결과와 공정표를 바탕으로 Agent가 근거 있는 보고서·질의응답을 제공하는 시스템을 개발합니다. 분석 대상, 상태 클래스와 측정 기준은 미정입니다.
+글로벌 리테일 매장의 현장 사진으로 시공 상태를 분석하고, 서버에 저장한 분석 결과와 공정표를 바탕으로 Agent가 근거 있는 보고서·질의응답을 제공하는 시스템을 개발합니다. 벽·천장 상태와 관측 가능한 ROI의 설치 비율을 분석하며, 전체 공정률 환산은 별도 기준이 필요합니다.
 
 기존 과제는 알로요가 매장의 고객 동선·존 분석이었습니다. A안(현장 사진 기반 공사 진행 모니터링)과 B안(개략 공사비·공급업체 견적)을 검토한 뒤, 2026년 9월 19일 팀 내부 회의에서 A안을 우선 선택했습니다. 당시에는 필요한 자료를 알로요가 측에서 제공하기 어려우면 B안으로 전환하는 조건도 검토했습니다. 현재는 A안으로 확정되어 진행 중입니다. [9월 19일 팀 회의록](https://github.com/Slen5124/Capstone-Design-Project-1/blob/main/docs/meetings/2026-09-19-weekly.md)과 [과제 변경 경위·기획 자료 요약](docs/planning/project-background.md)에 배경을 정리했습니다.
 
-세 분할 모델을 학습해 성능을 비교하고, 비교 결과가 좋은 모델을 선택하는 과정까지 프로젝트 범위에 포함합니다. 논문 주제에 모델 비교를 포함할지는 아직 정하지 않았습니다. 세부 흐름은 [현재 비전 파이프라인](docs/planning/current-vision-pipeline.md)에 정리했습니다.
+현재 기본 모델은 **DINOv2 + UPerNet**입니다. 세부 흐름은 [현재 비전 파이프라인](docs/planning/current-vision-pipeline.md)에 정리했습니다.
 
-상태별로 클래스를 분리해 인식할 계획입니다. 구체적인 대상 공종, 클래스 이름, 비율 계산 방식은 미정이며 추후 정합니다. 관측값을 실제 공정률로 환산하는 기준도 별도로 합의해야 합니다.
+벽·천장 설치 상태와 가림을 구분합니다. 관측 설치율을 실제 공정률로 환산하는 기준은 공정표 작업과 함께 별도로 합의해야 합니다.
 
 | 항목 | 내용 |
 | --- | --- |
@@ -27,9 +27,10 @@
 
 ## 시스템 설계와 구현 계획
 
+**2026-11-02 결정:** 기본 학습·추론은 DINOv2 + UPerNet. 아래 10월 실험 수치와 LOSO 비교 규격은 당시 기록이며 이번 정리에서 재실행하거나 재검증하지 않았습니다.
+
 **기준: 2026년 10월 28일 · 현장 4곳 라벨 완료, 현장 단위 교차검증(LOSO) 본 실험 진행 중**
 
-초기 계획(5클래스 DeepLabv3+ 분할, Grounding DINO → SAM 2.1 마스크 초안)은 10월 초 실행 확인까지만 하고 접었습니다.
 지금은 **"관측 가능한 영역 안에서 얼마나 설치됐는지"** 를 사람이 검수한 라벨로 학습하는 아래 파이프라인으로 바뀌었고, 코드는 전부 `src/vision/state_pipeline/`에 있습니다.
 
 ```
@@ -38,7 +39,7 @@
              ─▶ [2차] vp auto      구도(view) 묶기 · ROI 초안 · 카메라 위치/흔들림 검사 · 표본 · 상태 라벨 초안
              ─▶ [검수] vp review   브라우저 검수 화면(할 일 목록 + 편집 화면): 구도 · 대상 · ROI · 설치 상태 라벨 승인
              ─▶ [export]           이미지 + semantic / target / visibility / state 마스크 + train/val/test 분할
-             ─▶ [학습] train/loso  동결 DINOv2 ViT-B/14 + MLP / UPerNet / DPT 디코더(Linear 하한선),
+             ─▶ [학습] train/loso  동결 DINOv2 ViT-B/14 + UPerNet,
                                    헤드 2개(물체 8클래스 / 설치 상태 6클래스: 벽·천장 미설치·설치, 가림, 대상 아님)
              ─▶ [추론]             사진 → 상태 맵 → ROI별 설치율 → TTA · 작은 ROI 확대 · 가시성 인지 인과 보정(VCC)
                                    → 일별 진행률 · 철거 의심 표시 → vision_output.json  ─▶ 에이전트(보고서)
@@ -84,9 +85,11 @@
 | --- | --- |
 | [`src/vision/state_pipeline/`](src/vision/state_pipeline/) | **비전 파이프라인.** 1차 전처리(`qa_v3`, `qa_v2`), 2차 전처리 · 검수 앱 · export · 학습 · 추론(`vision_preprocessing`) |
 | [`docs/planning/`](docs/planning/) | 현재 시공 분석 과제의 구조·일정 분석 및 구현 기획 |
-| [`docs/meetings/`](docs/meetings/) | Notion과 동일하게 관리하는 Markdown 회의록 |
+| [`docs/meetings/`](docs/meetings/) | 공개 가능 여부를 검토한 회의 요약 |
 | [`docs/proposal/`](docs/proposal/) | 최초 배정 과제(고객 동선·Zone 분석) 제안서 요약. 방향 전환 이전의 배경 자료 |
 | [`docs/references/`](docs/references/) | 논문·기술문서 레퍼런스 및 리뷰 |
+| [`docs/public/`](docs/public/) | 백엔드 공개 문서와 SQL 안내 (API 실행 코드는 별도 관리) |
+| [`prototype/public-demo/`](prototype/public-demo/) | 가상 자료 기반 웹 시연 (실제 AI·서버 연동 전) |
 | `data/` | 로컬 데이터 작업 공간 (Git 추적 제외) |
 
 프로젝트 방향 전환의 배경은 [9월 17일 킥오프 회의록](docs/meetings/2026-09-17-client-kickoff.md)에 정리되어 있습니다.

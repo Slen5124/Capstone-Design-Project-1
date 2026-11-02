@@ -1,5 +1,7 @@
 # vision_preprocessing — 대상·작업 상태 전처리와 학습 데이터 export
 
+> 2026-11-02: 현재 기본 모델은 DINOv2 + UPerNet이다. 라벨 생성 모델 실행은 포함하지 않으며, 검수된 라벨 입력·ROI·상태 검수·export는 유지한다. LOSO 비교 디코더와 고정 규격은 연구 재현용으로 유지하며 자동으로 재실행하지 않는다.
+
 기존 qa_v2/qa_v3 결과(객체 종류별 폴리곤)는 **그대로 둔 채**, 그 위에 아래 세 층을 덧붙입니다.
 
 | 층 | 예 | 저장 위치 |
@@ -92,7 +94,7 @@ rem (3) 검수 창을 닫고(Ctrl+C) (1)의 두 번째 줄을 다시 실행 → 
     auto.py                전체 자동 실행·resume
     review_static\todo.html  할 일 화면
     cli.py, __main__.py    명령행
-    train\train_quick.py   학습: 동결 인코더 + 디코더(unet / upernet / linear / mlp / dpt / probe) + 헤드 2개
+    train\train_quick.py   학습: 동결 인코더 + 디코더(upernet (default) / linear / mlp / dpt / probe) + 헤드 2개
     train\decoders.py      ViT 전용 디코더: 경량 MLP(SegFormer식) · DPT · linear probe
     train\infer_quick.py   인퍼런스: 사진 → 상태 맵 → ROI(주어진 것 / 자동 제안) → 설치율 → vision_output.json
     train\infer_core.py    인퍼런스 후처리 (ROI 제안 · 설치율 · 날짜별 행 · 이벤트, torch 불필요)
@@ -229,7 +231,7 @@ cd /d "D:\work\project\전처리된 데이터"
 
 ```bat
 rem 학습 (기본: 상태 헤드가 ROI 밖 비벽 물체도 '대상 아님'으로 배움 → 새 현장에서 ROI 자동 제안 가능)
-.venv\Scripts\python -m vision_preprocessing.train.train_quick --export <run>\exports\<이름>_train_full --decoder unet
+.venv\Scripts\python -m vision_preprocessing.train.train_quick --export <run>\exports\<이름>_train_full --decoder upernet
 rem   비교: --decoder upernet / linear,  예전 방식: --state-outside roi
 
 rem 인퍼런스 (구도 하나의 사진 폴더 단위)

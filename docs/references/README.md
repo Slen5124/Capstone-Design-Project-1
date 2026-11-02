@@ -4,7 +4,7 @@
 
 > 아래 주제 분류와 읽을 목록 중 객체 검출·트래킹 / 존 카운팅 / 리테일 분석 항목은 최초 과제(고객 동선·Zone 분석) 기준입니다.
 > 2026-09-17 방향 전환 뒤의 과제는 공사 사진의 **시공 상태 분할·진행률 산정**이므로, 지금 관련 있는 주제는
-> `segmentation`(자동 분할 · ConvNeXt/DINOv2 인코더 · U-Net/UPerNet 디코더), `construction-progress`(사진 기반 공정 진행률),
+> `segmentation`(DINOv2 인코더 · UPerNet 디코더), `construction-progress`(사진 기반 공정 진행률),
 > `label-propagation`(시계열 사진의 라벨 전파·약지도), `privacy` 입니다.
 
 ## 작성 규칙

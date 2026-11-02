@@ -24,3 +24,11 @@ Do not upload old Git bundles, private originals, or maintenance audit artifacts
 GitHub-managed PR references and cached old commits may require a separate
 GitHub Support cleanup. Rewriting branch history alone does not prove that all
 server-side copies have been purged.
+
+## Public demonstration exception
+
+`prototype/public-demo/` contains the existing reviewed public demonstration:
+fictional data and demonstration assets, never a destination for customer uploads.
+Only the individually listed source assets and HTML templates are allowlisted in
+`.gitignore`. Generated `dist/`, user uploads, real reports, photos and credentials
+remain excluded. Review any replacement asset before publication.

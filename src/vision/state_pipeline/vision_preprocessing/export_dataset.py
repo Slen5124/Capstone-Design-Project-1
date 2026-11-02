@@ -1,4 +1,4 @@
-"""R10: U-Net (or any dense model) training export + draft previews and overlays.
+"""R10: Model-independent dense segmentation training export + draft previews and overlays.
 
 Model input is the RGB image only. Target IDs, capture times and ROI metadata
 are written to metadata.jsonl for loaders/evaluation; nothing here feeds them

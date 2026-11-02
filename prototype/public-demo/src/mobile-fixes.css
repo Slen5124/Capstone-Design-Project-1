@@ -1,0 +1,1 @@
+@media(max-width:950px){.review{grid-template-columns:minmax(0,1fr)}.queue{min-width:0}.review>.detail{width:100%;min-width:0}.actions,.dynamic-history{flex-wrap:wrap;gap:12px}.phone .heading{flex-direction:row;align-items:center;gap:10px}.phone .heading h1{margin:0;font-size:23px}.plain-history{background:transparent;color:#777;font-size:10px;padding:0}}

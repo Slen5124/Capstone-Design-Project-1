@@ -1,0 +1,11 @@
+(() => {
+  const A=window.DEMO,S=window.SiteSummary,$=s=>document.querySelector(s);let homeSelected='site_a';const isHome=()=>/\/$|\/index\.html$/.test(location.pathname);
+  function missing(){window.DemoUI.toast('연결된 세부 자료가 없습니다. 홈 요약만 제공하는 시연 매장입니다.');}
+  function refresh(){const nav=$('.side .site-list');if(!nav)return;const catalog=[...window.DEMO_SITE_CATALOG,...A.read().sites];
+    nav.innerHTML=catalog.map(site=>{const s=S.get(site.id),active=isHome()?homeSelected===site.id:site.id==='site_a';return '<div class="site-entry" data-nav-site="'+A.esc(site.id)+'"><a class="site '+(active?'active':'')+'" data-site-link="'+A.esc(site.id)+'" '+(s.detail?'href="00-site-overview.html"':'role="button" tabindex="0" aria-description="세부 자료 없음"')+'><span class="site-name">'+A.esc(site.name)+'<small>'+A.esc((site.english||site.city||'').toUpperCase())+'</small></span>'+(s.pending.length?'<span class="badge">'+s.pending.length+'</span>':'<span class="site-check">'+(s.detail?'✓':'○')+'</span>')+'</a></div>';}).join('');
+    nav.querySelectorAll('[data-site-link]').forEach(a=>{if(S.hasDetail(a.dataset.siteLink))return;const activate=e=>{e.preventDefault();if(isHome())window.selectHomeSite?.(a.dataset.siteLink);else missing();};a.onclick=activate;a.onkeydown=e=>{if(e.key==='Enter'||e.key===' ')activate(e);};});
+    if(isHome()){const field=$('.demo-controls a');if(field){if(S.hasDetail(homeSelected)){field.href='02-field-submission.html';field.removeAttribute('aria-disabled');}else{field.removeAttribute('href');field.setAttribute('aria-disabled','true');field.title='이 매장의 세부 자료가 없습니다.';}}}
+  }
+  function init(){const side=$('.side');if(!side)return;side.querySelector('.brand')?.removeAttribute('href');if(!$('.sidebar-home')){const home=document.createElement('a');home.className='sidebar-home '+(isHome()?'active':'');home.href='index.html';home.id='home-menu';home.innerHTML='<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 9.2 10 2l8 7.2M4.5 7.8V18h11V7.8M8 18v-6h4v6"/></svg><span>홈</span>';side.querySelector('.site-group').prepend(home);}document.querySelectorAll('.site_ad a[href="index.html"]').forEach(a=>a.removeAttribute('href'));refresh();}
+  window.AlohaNavigation={refresh,select:id=>{homeSelected=id;refresh();},missing};document.addEventListener('DOMContentLoaded',init);
+})();

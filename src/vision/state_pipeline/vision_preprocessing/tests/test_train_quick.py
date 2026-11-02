@@ -96,7 +96,7 @@ class TestTrainQuick(unittest.TestCase):
         tmp = Path(tempfile.mkdtemp(prefix="vp_train_"))
         try:
             fake_export(tmp / "exp")
-            for dec in ("unet", "upernet", "linear"):
+            for dec in ("upernet", "linear"):
                 out = tmp / f"out_{dec}"
                 with contextlib.redirect_stdout(io.StringIO()):
                     rc = main(["--export", str(tmp / "exp"), "--decoder", dec, "--encoder", "convnext_atto",

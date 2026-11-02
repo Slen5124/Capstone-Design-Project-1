@@ -1,5 +1,7 @@
 # AI handoff — construction-site state preprocessing (`vision_preprocessing`)
 
+> 2026-11-02: 현재 기본 모델은 DINOv2 + UPerNet이다. 라벨 생성 모델 실행은 포함하지 않으며, 검수된 라벨 입력·ROI·상태 검수·export는 유지한다. LOSO 비교 디코더와 고정 규격은 연구 재현용으로 유지하며 자동으로 재실행하지 않는다.
+
 > **사용법 (사람용):** 새 채팅이나 다른 LLM에 이 파일 전체를 붙여 넣고, 이어서 하고 싶은 일을 말하면 됩니다.
 > 가능하면 `NEW_SITE_GUIDE_ko.md`(사용 설명서)도 같이 붙여 넣으세요.
 > 작동 방법·흐름(Part A)은 한국어, 기술 세부(Part B)는 영어로 적었습니다.
@@ -75,7 +77,7 @@ vision_preprocessing\vp.cmd new-site --site-id SEOUL --name "Example Store #200 
 # 암호 ZIP(SITE_C·SITE_D) 사진을 미리 풀어 검수 캐시에 저장 (검수 서버 켜둔 채 다른 창에서 가능, 이어서 됨)
 vision_preprocessing\vp.cmd prewarm --run "state_preprocessing_results\run_..._site_c_full"
 # 학습 / 추론 (conda ksl 환경 = torch+timm. vp 도구는 .venv)
-python -m vision_preprocessing.train.train_quick --export <run>\exports\<이름> --decoder unet --out <out>
+python -m vision_preprocessing.train.train_quick --export <run>\exports\<이름> --decoder upernet --out <out>
 python -m vision_preprocessing.train.infer_quick --model <out>\model_quick.pt --images <사진폴더> --site-id SITE --view V01 --out <out2>
 # SITE_A 라벨 전파 (안정 구간 사진에 라벨 복사 → 새 export)
 python -m vision_preprocessing.tools.propagate_labels plan --run <run> --export <export> --store <sqlite>
@@ -101,7 +103,7 @@ SITE_A 학습 비교 (`train_quick\cmp_human`, 사람 라벨만, test): state mI
 
 ## A.6 남은 큰 일
 1. SITE_C 앵커 라벨링 → auto 재실행 → 초안 Grid 검수 → export → (필요하면) 라벨 전파
-2. SITE_A `cmp_propagated_v2` 재학습 → 사람 라벨만 / 전파 포함 / 디코더(U-Net·UPerNet·Linear) 비교 → 논문 실험표
+2. SITE_A `cmp_propagated_v2` 재학습 → 사람 라벨만 / 전파 포함 / 디코더(DINOv2 + UPerNet) 비교 → 논문 실험표
 3. 교차 현장 test (SITE_A 학습 → SITE_C 평가). 그 결과로 `vision_output.model.validation.installed_ratio_mae` 채움
 4. SITE_B, SITE_D 라벨링
 5. 백엔드·에이전트 연동: 공정표 작업 ID ↔ 비전 대상(W01…) 매핑, 설치율 ≠ 공정률 기준, 카메라 위치 ↔ 평면도
@@ -125,7 +127,7 @@ SITE_A 학습 비교 (`train_quick\cmp_human`, 사람 라벨만, test): state mI
 
 ## B.1 Goal
 From fixed construction-site camera photos (RGB, fisheye, ~every 10 min) build human-approved training data for a
-segmentation model (multi-head U-Net is only a proposal; preprocessing must not depend on a specific encoder/head) that
+segmentation model (DINOv2 + UPerNet is the current model; preprocessing must not depend on a specific encoder/head) that
 reports, per physical target and activity, the **installed share within the observable part of the target's
 measurement ROI**.
 
@@ -212,7 +214,7 @@ only dependent caches).
 
 ## B.4b Model, training, inference (`train/`, `tools/propagate_labels.py`)
 - `train_quick.TwoHeadSeg`: frozen timm encoder (default `convnext_tiny.fb_in22k`; DINOv3 needs Meta access),
-  decoders `unet` / `upernet` / `linear`, heads semantic 8 + state 4 (0 not_installed, 1 installed, 2 occluded,
+  decoders `upernet` (default); optional research decoders follow the LOSO protocol, heads semantic 8 + state 4 (0 not_installed, 1 installed, 2 occluded,
   3 not_target; 255 ignore). `--state-outside full` (default) / `roi`; `--propagated-weight 0.5`; `--exclude-ids @file`;
   per-photo weighted CE; val/test use human labels only. Checkpoint stores encoder, decoder, n_state, state_outside,
   activity, export_size. Training env: conda `ksl` (torch+timm). Neither the cloud sandbox nor the device VM has torch.

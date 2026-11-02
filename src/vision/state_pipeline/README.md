@@ -1,8 +1,10 @@
 # state_pipeline — 고정 카메라 공정 사진 전처리 · 학습 데이터 생성
 
+> 2026-11-02: 현재 기본 모델은 DINOv2 + UPerNet이다. 라벨 생성 모델 실행은 포함하지 않으며, 검수된 라벨 입력·ROI·상태 검수·export는 유지한다. LOSO 비교 디코더와 고정 규격은 연구 재현용으로 유지하며 자동으로 재실행하지 않는다.
+
 고정 카메라로 찍은 실내 마감 공정 사진(벽 보드, 천장 등)에서 **"관측 가능한 영역 안에서 얼마나 설치됐는지"** 를 학습할 수 있도록,
 자동 분할 초안(LabelMe 형식 폴리곤 JSON)을 정리하고 사람이 검수한 라벨만 학습 데이터로 내보내는 파이프라인입니다.
-같은 데이터로 바로 돌려볼 수 있는 간단한 학습 코드(DINOv3/ConvNeXt 인코더 + U-Net/UPerNet 디코더)도 포함합니다.
+같은 데이터로 바로 돌려볼 수 있는 간단한 학습 코드(DINOv2 인코더 + UPerNet 디코더)도 포함합니다.
 
 > 이 폴더에는 **코드와 사람이 쓴 문서만** 있습니다. 현장 사진, 자동 분할 초안, 1차 전처리 결과, 검수 저장소, 학습 가중치는 포함하지 않으며
 > 커밋해서도 안 됩니다 (저장소 `CONTRIBUTING.md`의 데이터 취급 원칙). 현장 이름은 `SITE_A` 처럼 익명화되어 있습니다.
@@ -32,7 +34,7 @@
 | `vision_preprocessing/` | 2차 전처리, 검수 앱, export, 학습 코드 (`vp.cmd`로 실행) |
 | `vision_preprocessing/config/site_example.json` | 현장 설정 예시. 현장마다 복사해서 사용 |
 | `vision_preprocessing/config/taxonomy.json` | 물체 · 대상 · 작업 분류 정의 |
-| `vision_preprocessing/train/train_quick.py` | 학습 · 평가 (동결 인코더 + U-Net / UPerNet / Linear + 헤드 2개) |
+| `vision_preprocessing/train/train_quick.py` | 학습 · 평가 (동결 인코더 + UPerNet (연구용 비교 디코더는 LOSO 규격 참조) + 헤드 2개) |
 | `vision_preprocessing/train/infer_quick.py` | 인퍼런스: 사진 → 상태 맵 → ROI(승인본 또는 자동 제안) → 설치율 → `vision_output.json` |
 | `vision_preprocessing/tools/propagate_labels.py` | 공정이 안 바뀐 구간에 사람 라벨을 복사한 보조 학습 데이터(전파 라벨) 생성 |
 | `vision_preprocessing/docs/NEW_SITE_GUIDE_ko.md` | **새 현장 추가 사용 설명서 (먼저 읽기)** |
@@ -93,10 +95,10 @@ export 결과는 run 폴더의 `exports\<이름>_train_full\` 아래에 생기�
 
 ```bat
 pip install torch timm      rem 환경에 맞는 CUDA 버전으로 설치
-.venv\Scripts\python -m vision_preprocessing.train.train_quick --export <run 폴더>\exports\<이름>_train_full --decoder unet
+.venv\Scripts\python -m vision_preprocessing.train.train_quick --export <run 폴더>\exports\<이름>_train_full --decoder upernet
 ```
 
-`--decoder unet | upernet | linear`, `--encoder` (timm 모델 이름, 기본 `convnext_tiny.fb_in22k`). 인코더는 동결되며 가중치는 저장하지 않습니다.
+`--decoder upernet | upernet | linear`, `--encoder` (timm 모델 이름, 기본 `vit_base_patch14_reg4_dinov2.lvd142m`). 인코더는 동결되며 가중치는 저장하지 않습니다.
 출력: `metrics.json` (state mIoU, 설치율 오차), `log.csv`, 오버레이 이미지, `model_quick.pt`. **출력물은 커밋하지 않습니다.**
 
 ### 5. 전파 라벨 (선택)
