@@ -5,7 +5,6 @@
 | 저자 | Shukang Yin, Chaoyou Fu, Sirui Zhao, Tong Xu, Hao Wang, Dianbo Sui, Yunhang Shen, Ke Li, Xing Sun, Enhong Chen |
 | 발표 연도 / 학회·저널 | Science China Information Sciences, 67, 220105 (2024). arXiv 최초 공개는 2023년 |
 | 링크 / DOI | [논문 안내](https://arxiv.org/abs/2310.16045) · [저널 DOI](https://doi.org/10.1007/s11432-024-4251-x) |
-| 검토한 원문 | [PDF](papers/yin2024-woodpecker.pdf), arXiv:2310.16045v2, 2024-12-11, 16쪽 |
 | 공식 코드 | [BradyFU/Woodpecker](https://github.com/BradyFU/Woodpecker) |
 | 태그 | `vlm-hallucination`, `agent-evaluation` |
 | 정리 | 원준 공유 자료 기반 팀 리뷰 노트 |

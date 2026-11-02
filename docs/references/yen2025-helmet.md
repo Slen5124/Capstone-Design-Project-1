@@ -5,7 +5,6 @@
 | 저자 | Howard Yen, Tianyu Gao, Minmin Hou, Ke Ding, Daniel Fleischer, Peter Izsak, Moshe Wasserblat, Danqi Chen |
 | 발표 연도 / 학회·저널 | ICLR 2025. arXiv 최초 공개는 2024년 |
 | 링크 / DOI | [논문 안내](https://arxiv.org/abs/2410.02694) · [프로젝트 페이지](https://princeton-nlp.github.io/HELMET/) |
-| 검토한 원문 | [PDF](papers/yen2025-helmet.pdf), ICLR 2025 표기가 있는 52쪽 문서 |
 | 공식 코드·데이터 | [princeton-nlp/HELMET](https://github.com/princeton-nlp/HELMET) |
 | 태그 | `long-context`, `agent-evaluation` |
 | 정리 | 원준 공유 자료 기반 팀 리뷰 노트 |
