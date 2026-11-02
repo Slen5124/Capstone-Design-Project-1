@@ -220,3 +220,6 @@ gpu_manual.pdf
 docs/works.md
 docs/experiments/2026-10-05-vision-smoke.md
 docs/references/papers/*.[pP][dD][fF]
+
+# Institution-only source manual; keep the local original outside Git.
+/gpu_manual.pdf
