@@ -2,6 +2,8 @@
 
 브랜드, 매장, 공정표, 사진, 날짜와 수치는 가상 자료입니다. 원본 공정표·실제 현장 사진·보고서·접속 정보는 포함하지 않습니다. QR은 example.com으로 연결됩니다.
 
+글꼴 `assets/noto-sans-kr.ttf`(Noto Sans KR)는 SIL Open Font License 1.1을 따르며, 저작권 표시와 라이선스 전문은 [`assets/OFL.txt`](assets/OFL.txt)에 있습니다.
+
 Node.js 설치 후 `node build.cjs`, `node server.cjs`를 실행하고 http://127.0.0.1:4318 에서 확인합니다. 브라우저 로컬 저장만 사용하는 시연이며 서버 동기화·AI 분석·알림은 구현되어 있지 않습니다.
 
 

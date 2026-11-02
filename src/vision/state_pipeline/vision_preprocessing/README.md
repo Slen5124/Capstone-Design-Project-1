@@ -225,7 +225,7 @@ cd /d "D:\work\project\전처리된 데이터"
 .venv\Scripts\python.exe -m unittest discover -s vision_preprocessing\tests -t . -v
 ```
 
-합성 데이터로 49개 테스트(test_pipeline 26 + test_auto 23)를 돌리며, 코드 동작만 검증합니다. 실제 현장의 상태 인식 정확도를 보여주는 결과가 아닙니다.
+합성 데이터로 단위 테스트 104개(2026-11-01 기준)를 돌리며, 코드 동작만 검증합니다. 실제 현장의 상태 인식 정확도를 보여주는 결과가 아닙니다.
 
 ## 학습 · 인퍼런스 (`train\`, torch · timm 필요)
 

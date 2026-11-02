@@ -85,10 +85,10 @@ python3 fetch.py --key "$KEY" --check-connection
 
 Python3.8 이상·SSH·rsync가 필요하다. 개인 quota와 ZIP·해제 데이터·결과를 함께 보관할 공간을 확인한다. 호스트 키 불일치는 관리자에게 확인하고 검사를 끄지 않는다.
 
-연결 확인 후 Brea만 받는다.
+연결 확인 후 SITE_A 자료만 받는다. 공개 문서의 현장 ID(`site_a` 등)는 가명이므로 실제 `--site` 값은 관리자에게 확인한다.
 
 ~~~bash
-python3 fetch.py --key "$KEY" --site brea --dest "$ALO_RUN/archives"
+python3 fetch.py --key "$KEY" --site site_a --dest "$ALO_RUN/archives"
 ~~~
 
 다섯 자료 전체가 필요하면 위 명령 대신 다음을 실행한다.
@@ -101,10 +101,10 @@ python3 fetch.py --key "$KEY" --site all --dest "$ALO_RUN/archives"
 
 ## 5 ZIP 확인과 GPU 할당
 
-GPU 로그인 서버에서 Brea ZIP의 내부 목록을 확인한다.
+GPU 로그인 서버에서 SITE_A ZIP의 내부 목록을 확인한다.
 
 ~~~bash
-python3 -m zipfile -l "$ALO_RUN/archives/brea/v001/archive.zip"
+python3 -m zipfile -l "$ALO_RUN/archives/site_a/v001/archive.zip"
 ~~~
 
 정답·클래스·분할과 안전한 내부 경로를 확인하고 새 폴더에 해제한다. 다운로드 완료만으로 학습 GT가 승인된 것은 아니다. 압축 해제 공간과 기관의 파일 관리 정책도 확인한다.

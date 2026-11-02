@@ -98,7 +98,7 @@ pip install torch timm      rem 환경에 맞는 CUDA 버전으로 설치
 .venv\Scripts\python -m vision_preprocessing.train.train_quick --export <run 폴더>\exports\<이름>_train_full --decoder upernet
 ```
 
-`--decoder upernet | upernet | linear`, `--encoder` (timm 모델 이름, 기본 `vit_base_patch14_reg4_dinov2.lvd142m`). 인코더는 동결되며 가중치는 저장하지 않습니다.
+`--decoder upernet | linear | mlp | dpt | probe` (기본 `upernet`, 나머지는 LOSO 비교용), `--encoder` (timm 모델 이름, 기본 `vit_base_patch14_reg4_dinov2.lvd142m`). 인코더는 동결되며 가중치는 저장하지 않습니다.
 출력: `metrics.json` (state mIoU, 설치율 오차), `log.csv`, 오버레이 이미지, `model_quick.pt`. **출력물은 커밋하지 않습니다.**
 
 ### 5. 전파 라벨 (선택)
@@ -130,7 +130,7 @@ cd qa_v3 && ..\.venv\Scripts\python -m unittest discover -p "test_*.py" && cd ..
 cd qa_v2 && ..\.venv\Scripts\python -m unittest discover -p "test_*.py" && cd ..
 ```
 
-확인된 결과: vision_preprocessing 78개 · qa_v3 83개 · qa_v2 42개 통과 (학습 · 인퍼런스 테스트 3개는 torch/timm이 없으면 건너뜀).
+확인된 결과(2026-11-01): vision_preprocessing 104개 · qa_v3 83개 · qa_v2 42개 통과 (학습 · 인퍼런스 테스트 3개는 torch/timm이 없으면 건너뜀).
 
 ## 원칙
 

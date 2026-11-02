@@ -107,11 +107,11 @@ DB 연결은 서버 내부 127.0.0.1:5432를 사용한다. 비밀번호는 코�
 아래는 ALO_STORAGE_ROOT를 기준으로 하는 저장 규칙 예시다. 모든 폴더와 파일이 이미 생성됐다는 의미는 아니다.
 
 ~~~text
-sites/brea/schedule/v001/originals/gantt.pdf
-sites/brea/daily/2026-10-15/sales-floor-01/r001/
+sites/site_a/schedule/v001/originals/gantt.pdf
+sites/site_a/daily/2026-10-15/sales-floor-01/r001/
   photo.jpg   result.json   changes.json   report.md
-gt/source-archives/brea/v001/archive.zip
-gt/datasets/brea/v001/
+gt/source-archives/site_a/v001/archive.zip
+gt/datasets/site_a/v001/
   archive.zip   manifest.json
 models/dinov2_upernet/v001/
   weights.pth   config.json   classes.json   metrics.json
@@ -184,10 +184,10 @@ python3 fetch.py --list
 python3 fetch.py --key "$KEY" \
   --remote-root "$AWS_ARCHIVES" --check-connection
 python3 fetch.py --key "$KEY" --remote-root "$AWS_ARCHIVES" \
-  --site brea --dest "$ALO_RUN/archives"
+  --site site_a --dest "$ALO_RUN/archives"
 ~~~
 
-위 예시는 일반 SSH 접속이 허용된 관리자 키를 사용하는 방식이다. rrsync로 지정 디렉터리만 읽도록 제한한 키는 --remote-root를 생략한다. 전체 자료가 필요하면 --site brea를 --site all로 변경한다.
+위 예시는 일반 SSH 접속이 허용된 관리자 키를 사용하는 방식이다. rrsync로 지정 디렉터리만 읽도록 제한한 키는 --remote-root를 생략한다. 전체 자료가 필요하면 --site site_a를 --site all로 변경한다. 공개 문서의 현장 ID(`site_a` 등)와 저장 경로의 현장 폴더명은 가명이며, 실제 값은 관리자에게 확인한다.
 
 다운로드는 AWS에서 GPU로 직접 진행한다. 파일 크기와 SHA-256 검증 완료 메시지를 확인한 뒤 사용한다. 전송이 끊기면 같은 저장 경로로 재시도하고, .part 파일이나 다운로드 잠금을 임의로 지우지 않는다. 호스트 키 검사를 끄지 않으며, 파일시스템 여유 공간 외에 개인 quota와 압축 해제 공간도 확인한다.
 
