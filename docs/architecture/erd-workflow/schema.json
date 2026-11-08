@@ -1,0 +1,2213 @@
+{
+  "verified_on": "2026-11-09",
+  "base_table_count": 20,
+  "view_count": 12,
+  "tables": [
+    {
+      "name": "agent_reports",
+      "columns": [
+        {
+          "udt": "uuid",
+          "name": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "site_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "schedule_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "date",
+          "name": "period_start",
+          "type": "date",
+          "nullable": "NO"
+        },
+        {
+          "udt": "date",
+          "name": "period_finish",
+          "type": "date",
+          "nullable": "NO"
+        },
+        {
+          "udt": "int4",
+          "name": "revision",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "status",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "report_file_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "udt": "timestamptz",
+          "name": "generated_at",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "approved_by",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "udt": "timestamptz",
+          "name": "approved_at",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "udt": "jsonb",
+          "name": "provenance",
+          "type": "jsonb",
+          "nullable": "NO"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "agent_reports_approved_by_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (approved_by) REFERENCES users(id)"
+        },
+        {
+          "name": "agent_reports_check",
+          "type": "c",
+          "definition": "CHECK ((period_start <= period_finish))"
+        },
+        {
+          "name": "agent_reports_check1",
+          "type": "c",
+          "definition": "CHECK (((status = 'approved'::text) = ((approved_by IS NOT NULL) AND (approved_at IS NOT NULL))))"
+        },
+        {
+          "name": "agent_reports_check2",
+          "type": "c",
+          "definition": "CHECK (((approved_by IS NULL) = (approved_at IS NULL)))"
+        },
+        {
+          "name": "agent_reports_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "agent_reports_provenance_check",
+          "type": "c",
+          "definition": "CHECK ((jsonb_typeof(provenance) = 'object'::text))"
+        },
+        {
+          "name": "agent_reports_revision_check",
+          "type": "c",
+          "definition": "CHECK ((revision > 0))"
+        },
+        {
+          "name": "agent_reports_site_id_report_file_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (site_id, report_file_id) REFERENCES files(site_id, id)"
+        },
+        {
+          "name": "agent_reports_site_id_schedule_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (site_id, schedule_id) REFERENCES schedules(site_id, id)"
+        },
+        {
+          "name": "agent_reports_site_id_schedule_id_period_start_period_finis_key",
+          "type": "u",
+          "definition": "UNIQUE (site_id, schedule_id, period_start, period_finish, revision)"
+        },
+        {
+          "name": "agent_reports_status_check",
+          "type": "c",
+          "definition": "CHECK ((status = ANY (ARRAY['pending'::text, 'failed'::text, 'validated'::text, 'approved'::text])))"
+        }
+      ]
+    },
+    {
+      "name": "change_requests",
+      "columns": [
+        {
+          "udt": "uuid",
+          "name": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "site_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "schedule_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "task_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "requester_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "from_organization_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "to_organization_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "request_type",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "date",
+          "name": "proposed_start",
+          "type": "date",
+          "nullable": "YES"
+        },
+        {
+          "udt": "date",
+          "name": "proposed_finish",
+          "type": "date",
+          "nullable": "YES"
+        },
+        {
+          "udt": "text",
+          "name": "proposed_work",
+          "type": "text",
+          "nullable": "YES"
+        },
+        {
+          "udt": "text",
+          "name": "reason",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "status",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "timestamptz",
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "change_requests_check",
+          "type": "c",
+          "definition": "CHECK ((from_organization_id <> to_organization_id))"
+        },
+        {
+          "name": "change_requests_check1",
+          "type": "c",
+          "definition": "CHECK (((proposed_start IS NULL) OR (proposed_finish IS NULL) OR (proposed_start <= proposed_finish)))"
+        },
+        {
+          "name": "change_requests_check2",
+          "type": "c",
+          "definition": "CHECK ((((request_type = 'work'::text) AND (proposed_work IS NOT NULL) AND (btrim(proposed_work) <> ''::text)) OR ((request_type = ANY (ARRAY['schedule'::text, 'extension'::text])) AND ((proposed_start IS NOT NULL) OR (proposed_finish IS NOT NULL)))))"
+        },
+        {
+          "name": "change_requests_check3",
+          "type": "c",
+          "definition": "CHECK (((request_type <> 'extension'::text) OR (proposed_finish IS NOT NULL)))"
+        },
+        {
+          "name": "change_requests_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "change_requests_reason_check",
+          "type": "c",
+          "definition": "CHECK ((btrim(reason) <> ''::text))"
+        },
+        {
+          "name": "change_requests_request_type_check",
+          "type": "c",
+          "definition": "CHECK ((request_type = ANY (ARRAY['schedule'::text, 'extension'::text, 'work'::text])))"
+        },
+        {
+          "name": "change_requests_schedule_id_task_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (schedule_id, task_id) REFERENCES schedule_tasks(schedule_id, id)"
+        },
+        {
+          "name": "change_requests_site_id_requester_id_from_organization_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (site_id, requester_id, from_organization_id) REFERENCES site_memberships(site_id, user_id, organization_id)"
+        },
+        {
+          "name": "change_requests_site_id_schedule_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (site_id, schedule_id) REFERENCES schedules(site_id, id)"
+        },
+        {
+          "name": "change_requests_site_id_schedule_id_task_id_id_key",
+          "type": "u",
+          "definition": "UNIQUE (site_id, schedule_id, task_id, id)"
+        },
+        {
+          "name": "change_requests_status_check",
+          "type": "c",
+          "definition": "CHECK ((status = ANY (ARRAY['pending'::text, 'accepted'::text, 'rejected'::text, 'applied'::text])))"
+        },
+        {
+          "name": "change_requests_to_organization_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (to_organization_id) REFERENCES organizations(id)"
+        }
+      ]
+    },
+    {
+      "name": "daily_records",
+      "columns": [
+        {
+          "udt": "uuid",
+          "name": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "site_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "location_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "date",
+          "name": "observation_date",
+          "type": "date",
+          "nullable": "NO"
+        },
+        {
+          "udt": "timestamptz",
+          "name": "captured_at",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "photo_file_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "model_version_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "udt": "uuid",
+          "name": "result_file_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "udt": "uuid",
+          "name": "changes_file_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "udt": "uuid",
+          "name": "report_file_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "udt": "uuid",
+          "name": "previous_record_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "udt": "uuid",
+          "name": "schedule_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "udt": "text",
+          "name": "comparison_rule_version",
+          "type": "text",
+          "nullable": "YES"
+        },
+        {
+          "udt": "text",
+          "name": "status",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "description",
+          "type": "text",
+          "nullable": "YES"
+        },
+        {
+          "udt": "text",
+          "name": "error_message",
+          "type": "text",
+          "nullable": "YES"
+        },
+        {
+          "udt": "timestamptz",
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "udt": "timestamptz",
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "daily_records_changes_file_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (changes_file_id) REFERENCES files(id)"
+        },
+        {
+          "name": "daily_records_check",
+          "type": "c",
+          "definition": "CHECK (((previous_record_id IS NULL) OR (previous_record_id <> id)))"
+        },
+        {
+          "name": "daily_records_check1",
+          "type": "c",
+          "definition": "CHECK (((status <> 'completed'::text) OR ((model_version_id IS NOT NULL) AND (result_file_id IS NOT NULL) AND (report_file_id IS NOT NULL))))"
+        },
+        {
+          "name": "daily_records_check2",
+          "type": "c",
+          "definition": "CHECK (((changes_file_id IS NULL) OR ((previous_record_id IS NOT NULL) AND (comparison_rule_version IS NOT NULL))))"
+        },
+        {
+          "name": "daily_records_location_id_id_key",
+          "type": "u",
+          "definition": "UNIQUE (location_id, id)"
+        },
+        {
+          "name": "daily_records_location_id_observation_date_key",
+          "type": "u",
+          "definition": "UNIQUE (location_id, observation_date)"
+        },
+        {
+          "name": "daily_records_location_id_previous_record_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (location_id, previous_record_id) REFERENCES daily_records(location_id, id)"
+        },
+        {
+          "name": "daily_records_model_version_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (model_version_id) REFERENCES model_versions(id)"
+        },
+        {
+          "name": "daily_records_photo_file_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (photo_file_id) REFERENCES files(id)"
+        },
+        {
+          "name": "daily_records_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "daily_records_report_file_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (report_file_id) REFERENCES files(id)"
+        },
+        {
+          "name": "daily_records_result_file_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (result_file_id) REFERENCES files(id)"
+        },
+        {
+          "name": "daily_records_site_id_id_key",
+          "type": "u",
+          "definition": "UNIQUE (site_id, id)"
+        },
+        {
+          "name": "daily_records_site_id_location_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (site_id, location_id) REFERENCES locations(site_id, id)"
+        },
+        {
+          "name": "daily_records_site_id_schedule_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (site_id, schedule_id) REFERENCES schedules(site_id, id)"
+        },
+        {
+          "name": "daily_records_status_check",
+          "type": "c",
+          "definition": "CHECK ((status = ANY (ARRAY['pending'::text, 'processing'::text, 'completed'::text, 'failed'::text])))"
+        }
+      ]
+    },
+    {
+      "name": "files",
+      "columns": [
+        {
+          "udt": "uuid",
+          "name": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "relative_path",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "kind",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "int8",
+          "name": "size_bytes",
+          "type": "bigint",
+          "nullable": "YES"
+        },
+        {
+          "udt": "text",
+          "name": "sha256",
+          "type": "text",
+          "nullable": "YES"
+        },
+        {
+          "udt": "text",
+          "name": "status",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "timestamptz",
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "site_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "udt": "text",
+          "name": "visibility",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "uploaded_by",
+          "type": "uuid",
+          "nullable": "YES"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "files_check",
+          "type": "c",
+          "definition": "CHECK (((status <> 'ready'::text) OR ((size_bytes IS NOT NULL) AND (sha256 IS NOT NULL))))"
+        },
+        {
+          "name": "files_kind_check",
+          "type": "c",
+          "definition": "CHECK ((length(btrim(kind)) > 0))"
+        },
+        {
+          "name": "files_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "files_relative_path_check",
+          "type": "c",
+          "definition": "CHECK (((length(relative_path) > 0) AND (relative_path !~~ '/%'::text) AND (relative_path !~ '^[A-Za-z]:'::text) AND (POSITION((chr(92)) IN (relative_path)) = 0) AND (relative_path !~ '(^|/)\\.{1,2}(/|$)'::text)))"
+        },
+        {
+          "name": "files_relative_path_key",
+          "type": "u",
+          "definition": "UNIQUE (relative_path)"
+        },
+        {
+          "name": "files_sha256_check",
+          "type": "c",
+          "definition": "CHECK ((sha256 ~ '^[0-9a-f]{64}$'::text))"
+        },
+        {
+          "name": "files_site_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)"
+        },
+        {
+          "name": "files_site_id_id_key",
+          "type": "u",
+          "definition": "UNIQUE (site_id, id)"
+        },
+        {
+          "name": "files_size_bytes_check",
+          "type": "c",
+          "definition": "CHECK ((size_bytes >= 0))"
+        },
+        {
+          "name": "files_status_check",
+          "type": "c",
+          "definition": "CHECK ((status = ANY (ARRAY['pending'::text, 'ready'::text, 'failed'::text])))"
+        },
+        {
+          "name": "files_uploaded_by_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (uploaded_by) REFERENCES users(id)"
+        },
+        {
+          "name": "files_visibility_check",
+          "type": "c",
+          "definition": "CHECK ((visibility = ANY (ARRAY['internal'::text, 'site'::text, 'request'::text])))"
+        }
+      ]
+    },
+    {
+      "name": "gt_datasets",
+      "columns": [
+        {
+          "udt": "uuid",
+          "name": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "name",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "version",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "archive_file_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "manifest_file_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "label_schema_version",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "preprocessing_tool",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "review_status",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "description",
+          "type": "text",
+          "nullable": "YES"
+        },
+        {
+          "udt": "timestamptz",
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "gt_datasets_archive_file_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (archive_file_id) REFERENCES files(id)"
+        },
+        {
+          "name": "gt_datasets_check",
+          "type": "c",
+          "definition": "CHECK ((archive_file_id <> manifest_file_id))"
+        },
+        {
+          "name": "gt_datasets_manifest_file_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (manifest_file_id) REFERENCES files(id)"
+        },
+        {
+          "name": "gt_datasets_name_check",
+          "type": "c",
+          "definition": "CHECK ((name ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text))"
+        },
+        {
+          "name": "gt_datasets_name_version_key",
+          "type": "u",
+          "definition": "UNIQUE (name, version)"
+        },
+        {
+          "name": "gt_datasets_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "gt_datasets_review_status_check",
+          "type": "c",
+          "definition": "CHECK ((review_status = ANY (ARRAY['draft'::text, 'reviewed'::text, 'approved'::text])))"
+        },
+        {
+          "name": "gt_datasets_version_check",
+          "type": "c",
+          "definition": "CHECK ((version ~ '^v[0-9]{3,}$'::text))"
+        }
+      ]
+    },
+    {
+      "name": "locations",
+      "columns": [
+        {
+          "udt": "uuid",
+          "name": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "site_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "code",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "name",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "description",
+          "type": "text",
+          "nullable": "YES"
+        },
+        {
+          "udt": "timestamptz",
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "camera_provider",
+          "type": "text",
+          "nullable": "YES"
+        },
+        {
+          "udt": "text",
+          "name": "camera_external_id",
+          "type": "text",
+          "nullable": "YES"
+        },
+        {
+          "udt": "text",
+          "name": "credential_ref",
+          "type": "text",
+          "nullable": "YES"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "locations_code_check",
+          "type": "c",
+          "definition": "CHECK ((code ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text))"
+        },
+        {
+          "name": "locations_name_check",
+          "type": "c",
+          "definition": "CHECK ((length(btrim(name)) > 0))"
+        },
+        {
+          "name": "locations_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "locations_site_id_code_key",
+          "type": "u",
+          "definition": "UNIQUE (site_id, code)"
+        },
+        {
+          "name": "locations_site_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)"
+        },
+        {
+          "name": "locations_site_id_id_key",
+          "type": "u",
+          "definition": "UNIQUE (site_id, id)"
+        }
+      ]
+    },
+    {
+      "name": "model_versions",
+      "columns": [
+        {
+          "udt": "uuid",
+          "name": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "model_type",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "version",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "backbone",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "gt_dataset_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "udt": "uuid",
+          "name": "weights_file_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "config_file_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "classes_file_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "metrics_file_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "udt": "timestamptz",
+          "name": "trained_at",
+          "type": "timestamp with time zone",
+          "nullable": "YES"
+        },
+        {
+          "udt": "text",
+          "name": "code_version",
+          "type": "text",
+          "nullable": "YES"
+        },
+        {
+          "udt": "jsonb",
+          "name": "library_versions",
+          "type": "jsonb",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "description",
+          "type": "text",
+          "nullable": "YES"
+        },
+        {
+          "udt": "timestamptz",
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "model_versions_classes_file_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (classes_file_id) REFERENCES files(id)"
+        },
+        {
+          "name": "model_versions_config_file_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (config_file_id) REFERENCES files(id)"
+        },
+        {
+          "name": "model_versions_gt_dataset_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (gt_dataset_id) REFERENCES gt_datasets(id)"
+        },
+        {
+          "name": "model_versions_library_versions_check",
+          "type": "c",
+          "definition": "CHECK ((jsonb_typeof(library_versions) = 'object'::text))"
+        },
+        {
+          "name": "model_versions_metrics_file_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (metrics_file_id) REFERENCES files(id)"
+        },
+        {
+          "name": "model_versions_model_type_check",
+          "type": "c",
+          "definition": "CHECK ((model_type = ANY (ARRAY['unet'::text, 'mask-rcnn'::text, 'deeplab-v3'::text])))"
+        },
+        {
+          "name": "model_versions_model_type_version_key",
+          "type": "u",
+          "definition": "UNIQUE (model_type, version)"
+        },
+        {
+          "name": "model_versions_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "model_versions_version_check",
+          "type": "c",
+          "definition": "CHECK ((version ~ '^v[0-9]{3,}$'::text))"
+        },
+        {
+          "name": "model_versions_weights_file_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (weights_file_id) REFERENCES files(id)"
+        }
+      ]
+    },
+    {
+      "name": "organizations",
+      "columns": [
+        {
+          "udt": "uuid",
+          "name": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "name",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "organization_type",
+          "type": "text",
+          "nullable": "NO"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "organizations_name_check",
+          "type": "c",
+          "definition": "CHECK (((length(btrim(name)) >= 1) AND (length(btrim(name)) <= 200)))"
+        },
+        {
+          "name": "organizations_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    {
+      "name": "question_archives",
+      "columns": [
+        {
+          "udt": "uuid",
+          "name": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "site_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "title",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "timestamptz",
+          "name": "asked_at",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "archive_file_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "description",
+          "type": "text",
+          "nullable": "YES"
+        },
+        {
+          "udt": "timestamptz",
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "question_archives_archive_file_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (archive_file_id) REFERENCES files(id)"
+        },
+        {
+          "name": "question_archives_archive_file_id_key",
+          "type": "u",
+          "definition": "UNIQUE (archive_file_id)"
+        },
+        {
+          "name": "question_archives_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "question_archives_site_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)"
+        },
+        {
+          "name": "question_archives_title_check",
+          "type": "c",
+          "definition": "CHECK (((length(btrim(title)) >= 1) AND (length(btrim(title)) <= 200)))"
+        }
+      ]
+    },
+    {
+      "name": "schedule_sources",
+      "columns": [
+        {
+          "udt": "uuid",
+          "name": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "schedule_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "file_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "int4",
+          "name": "display_order",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "description",
+          "type": "text",
+          "nullable": "YES"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "schedule_sources_display_order_check",
+          "type": "c",
+          "definition": "CHECK ((display_order >= 0))"
+        },
+        {
+          "name": "schedule_sources_file_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (file_id) REFERENCES files(id)"
+        },
+        {
+          "name": "schedule_sources_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "schedule_sources_schedule_id_file_id_key",
+          "type": "u",
+          "definition": "UNIQUE (schedule_id, file_id)"
+        },
+        {
+          "name": "schedule_sources_schedule_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (schedule_id) REFERENCES schedules(id)"
+        },
+        {
+          "name": "schedule_sources_schedule_id_id_key",
+          "type": "u",
+          "definition": "UNIQUE (schedule_id, id)"
+        }
+      ]
+    },
+    {
+      "name": "schedule_task_locations",
+      "columns": [
+        {
+          "udt": "uuid",
+          "name": "site_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "schedule_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "task_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "location_id",
+          "type": "uuid",
+          "nullable": "NO"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "schedule_task_locations_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (task_id, location_id)"
+        },
+        {
+          "name": "schedule_task_locations_schedule_id_task_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (schedule_id, task_id) REFERENCES schedule_tasks(schedule_id, id)"
+        },
+        {
+          "name": "schedule_task_locations_site_id_location_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (site_id, location_id) REFERENCES locations(site_id, id)"
+        },
+        {
+          "name": "schedule_task_locations_site_id_schedule_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (site_id, schedule_id) REFERENCES schedules(site_id, id)"
+        }
+      ]
+    },
+    {
+      "name": "schedule_tasks",
+      "columns": [
+        {
+          "udt": "uuid",
+          "name": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "schedule_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "schedule_source_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "source_task_id",
+          "type": "text",
+          "nullable": "YES"
+        },
+        {
+          "udt": "int4",
+          "name": "display_order",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "week",
+          "type": "text",
+          "nullable": "YES"
+        },
+        {
+          "udt": "text",
+          "name": "task_name",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "date",
+          "name": "start",
+          "type": "date",
+          "nullable": "YES"
+        },
+        {
+          "udt": "date",
+          "name": "finish",
+          "type": "date",
+          "nullable": "YES"
+        },
+        {
+          "udt": "uuid",
+          "name": "predecessor_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "udt": "uuid",
+          "name": "successor_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "udt": "text",
+          "name": "surface_type",
+          "type": "text",
+          "nullable": "YES"
+        },
+        {
+          "udt": "_text",
+          "name": "category_codes",
+          "type": "ARRAY",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "processing_route",
+          "type": "text",
+          "nullable": "YES"
+        },
+        {
+          "udt": "date",
+          "name": "effective_start",
+          "type": "date",
+          "nullable": "YES"
+        },
+        {
+          "udt": "date",
+          "name": "effective_finish",
+          "type": "date",
+          "nullable": "YES"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "schedule_tasks_category_tags_check",
+          "type": "c",
+          "definition": "CHECK (((category_codes <@ ARRAY['wall'::text, 'floor'::text, 'ceiling'::text, 'fixture'::text, 'mep'::text, 'admin'::text, 'other'::text]) AND (array_position(category_codes, NULL::text) IS NULL)))"
+        },
+        {
+          "name": "schedule_tasks_check",
+          "type": "c",
+          "definition": "CHECK (((start IS NULL) OR (finish IS NULL) OR (finish >= start)))"
+        },
+        {
+          "name": "schedule_tasks_check1",
+          "type": "c",
+          "definition": "CHECK (((predecessor_id IS NULL) OR (predecessor_id <> id)))"
+        },
+        {
+          "name": "schedule_tasks_check2",
+          "type": "c",
+          "definition": "CHECK (((successor_id IS NULL) OR (successor_id <> id)))"
+        },
+        {
+          "name": "schedule_tasks_check3",
+          "type": "c",
+          "definition": "CHECK (((predecessor_id IS NULL) OR (successor_id IS NULL) OR (predecessor_id <> successor_id)))"
+        },
+        {
+          "name": "schedule_tasks_check4",
+          "type": "c",
+          "definition": "CHECK ((COALESCE(effective_start, start) <= COALESCE(effective_finish, finish)))"
+        },
+        {
+          "name": "schedule_tasks_display_order_check",
+          "type": "c",
+          "definition": "CHECK ((display_order >= 0))"
+        },
+        {
+          "name": "schedule_tasks_evidence_route_check",
+          "type": "c",
+          "definition": "CHECK ((processing_route = ANY (ARRAY['ai'::text, 'field'::text, 'manual_check'::text])))"
+        },
+        {
+          "name": "schedule_tasks_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "schedule_tasks_schedule_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (schedule_id) REFERENCES schedules(id)"
+        },
+        {
+          "name": "schedule_tasks_schedule_id_id_key",
+          "type": "u",
+          "definition": "UNIQUE (schedule_id, id)"
+        },
+        {
+          "name": "schedule_tasks_schedule_id_predecessor_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (schedule_id, predecessor_id) REFERENCES schedule_tasks(schedule_id, id) DEFERRABLE INITIALLY DEFERRED"
+        },
+        {
+          "name": "schedule_tasks_schedule_id_predecessor_id_key",
+          "type": "u",
+          "definition": "UNIQUE (schedule_id, predecessor_id) DEFERRABLE INITIALLY DEFERRED"
+        },
+        {
+          "name": "schedule_tasks_schedule_id_schedule_source_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (schedule_id, schedule_source_id) REFERENCES schedule_sources(schedule_id, id)"
+        },
+        {
+          "name": "schedule_tasks_schedule_id_successor_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (schedule_id, successor_id) REFERENCES schedule_tasks(schedule_id, id) DEFERRABLE INITIALLY DEFERRED"
+        },
+        {
+          "name": "schedule_tasks_schedule_id_successor_id_key",
+          "type": "u",
+          "definition": "UNIQUE (schedule_id, successor_id) DEFERRABLE INITIALLY DEFERRED"
+        },
+        {
+          "name": "schedule_tasks_schedule_source_id_source_task_id_key",
+          "type": "u",
+          "definition": "UNIQUE (schedule_source_id, source_task_id)"
+        },
+        {
+          "name": "schedule_tasks_surface_type_check",
+          "type": "c",
+          "definition": "CHECK ((surface_type = ANY (ARRAY['floor'::text, 'ceiling'::text, 'wall'::text])))"
+        },
+        {
+          "name": "schedule_tasks_task_name_check",
+          "type": "c",
+          "definition": "CHECK ((length(btrim(task_name)) > 0))"
+        },
+        {
+          "name": "schedule_tasks_validate_links",
+          "type": "t",
+          "definition": "TRIGGER DEFERRABLE INITIALLY DEFERRED"
+        }
+      ]
+    },
+    {
+      "name": "schedules",
+      "columns": [
+        {
+          "udt": "uuid",
+          "name": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "site_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "version",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "date",
+          "name": "document_date",
+          "type": "date",
+          "nullable": "YES"
+        },
+        {
+          "udt": "text",
+          "name": "description",
+          "type": "text",
+          "nullable": "YES"
+        },
+        {
+          "udt": "timestamptz",
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "schedules_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "schedules_site_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)"
+        },
+        {
+          "name": "schedules_site_id_id_key",
+          "type": "u",
+          "definition": "UNIQUE (site_id, id)"
+        },
+        {
+          "name": "schedules_site_id_version_key",
+          "type": "u",
+          "definition": "UNIQUE (site_id, version)"
+        },
+        {
+          "name": "schedules_version_check",
+          "type": "c",
+          "definition": "CHECK ((version ~ '^v[0-9]{3,}$'::text))"
+        }
+      ]
+    },
+    {
+      "name": "site_memberships",
+      "columns": [
+        {
+          "udt": "uuid",
+          "name": "site_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "user_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "organization_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "role",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "bool",
+          "name": "is_active",
+          "type": "boolean",
+          "nullable": "NO"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "site_memberships_organization_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (organization_id) REFERENCES organizations(id)"
+        },
+        {
+          "name": "site_memberships_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (site_id, user_id, organization_id)"
+        },
+        {
+          "name": "site_memberships_role_check",
+          "type": "c",
+          "definition": "CHECK ((role = ANY (ARRAY['hq'::text, 'field'::text, 'viewer'::text])))"
+        },
+        {
+          "name": "site_memberships_site_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)"
+        },
+        {
+          "name": "site_memberships_user_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (user_id) REFERENCES users(id)"
+        }
+      ]
+    },
+    {
+      "name": "sites",
+      "columns": [
+        {
+          "udt": "uuid",
+          "name": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "code",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "name",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "address",
+          "type": "text",
+          "nullable": "YES"
+        },
+        {
+          "udt": "text",
+          "name": "timezone",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "description",
+          "type": "text",
+          "nullable": "YES"
+        },
+        {
+          "udt": "timestamptz",
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "udt": "numeric",
+          "name": "latitude",
+          "type": "numeric",
+          "nullable": "YES"
+        },
+        {
+          "udt": "numeric",
+          "name": "longitude",
+          "type": "numeric",
+          "nullable": "YES"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "sites_check",
+          "type": "c",
+          "definition": "CHECK ((((latitude IS NULL) AND (longitude IS NULL)) OR ((latitude IS NOT NULL) AND (longitude IS NOT NULL) AND ((latitude >= ('-90'::integer)::numeric) AND (latitude <= (90)::numeric)) AND ((longitude >= ('-180'::integer)::numeric) AND (longitude <= (180)::numeric)))))"
+        },
+        {
+          "name": "sites_code_check",
+          "type": "c",
+          "definition": "CHECK ((code ~ '^[a-z0-9]+(-[a-z0-9]+)*$'::text))"
+        },
+        {
+          "name": "sites_code_key",
+          "type": "u",
+          "definition": "UNIQUE (code)"
+        },
+        {
+          "name": "sites_name_check",
+          "type": "c",
+          "definition": "CHECK ((length(btrim(name)) > 0))"
+        },
+        {
+          "name": "sites_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    {
+      "name": "task_event_files",
+      "columns": [
+        {
+          "udt": "uuid",
+          "name": "site_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "event_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "file_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "int4",
+          "name": "sort_order",
+          "type": "integer",
+          "nullable": "NO"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "task_event_files_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (event_id, file_id)"
+        },
+        {
+          "name": "task_event_files_site_id_event_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (site_id, event_id) REFERENCES task_events(site_id, id)"
+        },
+        {
+          "name": "task_event_files_site_id_file_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (site_id, file_id) REFERENCES files(site_id, id)"
+        },
+        {
+          "name": "task_event_files_sort_order_check",
+          "type": "c",
+          "definition": "CHECK ((sort_order >= 0))"
+        }
+      ]
+    },
+    {
+      "name": "task_events",
+      "columns": [
+        {
+          "udt": "uuid",
+          "name": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "site_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "schedule_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "udt": "uuid",
+          "name": "task_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "udt": "uuid",
+          "name": "actor_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "udt": "text",
+          "name": "event_type",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "timestamptz",
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "request_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "udt": "uuid",
+          "name": "target_event_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "udt": "uuid",
+          "name": "observation_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "udt": "text",
+          "name": "body",
+          "type": "text",
+          "nullable": "YES"
+        },
+        {
+          "udt": "jsonb",
+          "name": "details",
+          "type": "jsonb",
+          "nullable": "NO"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "task_events_actor_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (actor_id) REFERENCES users(id)"
+        },
+        {
+          "name": "task_events_check",
+          "type": "c",
+          "definition": "CHECK (((event_type = 'workflow_state'::text) OR ((schedule_id IS NOT NULL) AND (task_id IS NOT NULL) AND (actor_id IS NOT NULL))))"
+        },
+        {
+          "name": "task_events_check1",
+          "type": "c",
+          "definition": "CHECK (((request_id IS NULL) OR ((schedule_id IS NOT NULL) AND (task_id IS NOT NULL))))"
+        },
+        {
+          "name": "task_events_check2",
+          "type": "c",
+          "definition": "CHECK (((observation_id IS NULL) OR ((schedule_id IS NOT NULL) AND (task_id IS NOT NULL))))"
+        },
+        {
+          "name": "task_events_check3",
+          "type": "c",
+          "definition": "CHECK (((event_type <> ALL (ARRAY['message'::text, 'request_accept'::text, 'request_reject'::text, 'schedule_apply'::text, 'work_apply'::text])) OR (request_id IS NOT NULL)))"
+        },
+        {
+          "name": "task_events_check4",
+          "type": "c",
+          "definition": "CHECK (((event_type <> ALL (ARRAY['review_accept'::text, 'review_reject'::text, 'completion_confirm'::text])) OR ((((target_event_id IS NOT NULL))::integer + ((observation_id IS NOT NULL))::integer) = 1)))"
+        },
+        {
+          "name": "task_events_check5",
+          "type": "c",
+          "definition": "CHECK (((target_event_id IS NULL) OR (target_event_id <> id)))"
+        },
+        {
+          "name": "task_events_check6",
+          "type": "c",
+          "definition": "CHECK (((event_type <> ALL (ARRAY['review_reject'::text, 'request_reject'::text])) OR (btrim(COALESCE(body, ''::text)) <> ''::text)))"
+        },
+        {
+          "name": "task_events_details_check",
+          "type": "c",
+          "definition": "CHECK ((jsonb_typeof(details) = 'object'::text))"
+        },
+        {
+          "name": "task_events_event_type_check",
+          "type": "c",
+          "definition": "CHECK ((event_type = ANY (ARRAY['submission'::text, 'resubmission'::text, 'review_accept'::text, 'review_reject'::text, 'completion_confirm'::text, 'message'::text, 'request_accept'::text, 'request_reject'::text, 'schedule_apply'::text, 'work_apply'::text, 'classification_change'::text, 'workflow_state'::text])))"
+        },
+        {
+          "name": "task_events_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "task_events_schedule_id_task_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (schedule_id, task_id) REFERENCES schedule_tasks(schedule_id, id)"
+        },
+        {
+          "name": "task_events_site_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)"
+        },
+        {
+          "name": "task_events_site_id_id_key",
+          "type": "u",
+          "definition": "UNIQUE (site_id, id)"
+        },
+        {
+          "name": "task_events_site_id_schedule_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (site_id, schedule_id) REFERENCES schedules(site_id, id)"
+        },
+        {
+          "name": "task_events_site_id_schedule_id_task_id_observation_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (site_id, schedule_id, task_id, observation_id) REFERENCES task_observations(site_id, schedule_id, task_id, id)"
+        },
+        {
+          "name": "task_events_site_id_schedule_id_task_id_request_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (site_id, schedule_id, task_id, request_id) REFERENCES change_requests(site_id, schedule_id, task_id, id)"
+        },
+        {
+          "name": "task_events_site_id_target_event_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (site_id, target_event_id) REFERENCES task_events(site_id, id)"
+        }
+      ]
+    },
+    {
+      "name": "task_observations",
+      "columns": [
+        {
+          "udt": "uuid",
+          "name": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "site_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "schedule_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "task_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "daily_record_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "target_key",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "view_key",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "int4",
+          "name": "revision",
+          "type": "integer",
+          "nullable": "NO"
+        },
+        {
+          "udt": "numeric",
+          "name": "installed_ratio",
+          "type": "numeric",
+          "nullable": "YES"
+        },
+        {
+          "udt": "text",
+          "name": "status",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "hold_reason",
+          "type": "text",
+          "nullable": "YES"
+        },
+        {
+          "udt": "uuid",
+          "name": "overlay_file_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "udt": "timestamptz",
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "task_observations_check",
+          "type": "c",
+          "definition": "CHECK (((status = 'observed'::text) = (installed_ratio IS NOT NULL)))"
+        },
+        {
+          "name": "task_observations_check1",
+          "type": "c",
+          "definition": "CHECK (((status = 'observed'::text) OR ((hold_reason IS NOT NULL) AND (btrim(hold_reason) <> ''::text))))"
+        },
+        {
+          "name": "task_observations_installed_ratio_check",
+          "type": "c",
+          "definition": "CHECK (((installed_ratio >= (0)::numeric) AND (installed_ratio <= (1)::numeric)))"
+        },
+        {
+          "name": "task_observations_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "task_observations_revision_check",
+          "type": "c",
+          "definition": "CHECK ((revision > 0))"
+        },
+        {
+          "name": "task_observations_schedule_id_task_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (schedule_id, task_id) REFERENCES schedule_tasks(schedule_id, id)"
+        },
+        {
+          "name": "task_observations_site_id_daily_record_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (site_id, daily_record_id) REFERENCES daily_records(site_id, id)"
+        },
+        {
+          "name": "task_observations_site_id_overlay_file_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (site_id, overlay_file_id) REFERENCES files(site_id, id)"
+        },
+        {
+          "name": "task_observations_site_id_schedule_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (site_id, schedule_id) REFERENCES schedules(site_id, id)"
+        },
+        {
+          "name": "task_observations_site_id_schedule_id_task_id_id_key",
+          "type": "u",
+          "definition": "UNIQUE (site_id, schedule_id, task_id, id)"
+        },
+        {
+          "name": "task_observations_status_check",
+          "type": "c",
+          "definition": "CHECK ((status = ANY (ARRAY['observed'::text, 'unobserved'::text, 'held'::text, 'failed'::text])))"
+        },
+        {
+          "name": "task_observations_target_key_check",
+          "type": "c",
+          "definition": "CHECK ((btrim(target_key) <> ''::text))"
+        },
+        {
+          "name": "task_observations_task_id_daily_record_id_target_key_view_k_key",
+          "type": "u",
+          "definition": "UNIQUE (task_id, daily_record_id, target_key, view_key, revision)"
+        },
+        {
+          "name": "task_observations_view_key_check",
+          "type": "c",
+          "definition": "CHECK ((btrim(view_key) <> ''::text))"
+        }
+      ]
+    },
+    {
+      "name": "users",
+      "columns": [
+        {
+          "udt": "uuid",
+          "name": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "auth_provider",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "auth_subject",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "display_name",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "bool",
+          "name": "is_active",
+          "type": "boolean",
+          "nullable": "NO"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "users_auth_provider_auth_subject_key",
+          "type": "u",
+          "definition": "UNIQUE (auth_provider, auth_subject)"
+        },
+        {
+          "name": "users_auth_provider_check",
+          "type": "c",
+          "definition": "CHECK ((btrim(auth_provider) <> ''::text))"
+        },
+        {
+          "name": "users_auth_subject_check",
+          "type": "c",
+          "definition": "CHECK ((btrim(auth_subject) <> ''::text))"
+        },
+        {
+          "name": "users_display_name_check",
+          "type": "c",
+          "definition": "CHECK ((btrim(display_name) <> ''::text))"
+        },
+        {
+          "name": "users_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        }
+      ]
+    },
+    {
+      "name": "weekly_reports",
+      "columns": [
+        {
+          "udt": "uuid",
+          "name": "id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "site_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "schedule_id",
+          "type": "uuid",
+          "nullable": "YES"
+        },
+        {
+          "udt": "text",
+          "name": "week",
+          "type": "text",
+          "nullable": "NO"
+        },
+        {
+          "udt": "date",
+          "name": "period_start",
+          "type": "date",
+          "nullable": "YES"
+        },
+        {
+          "udt": "date",
+          "name": "period_finish",
+          "type": "date",
+          "nullable": "YES"
+        },
+        {
+          "udt": "uuid",
+          "name": "report_file_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "uuid",
+          "name": "metadata_file_id",
+          "type": "uuid",
+          "nullable": "NO"
+        },
+        {
+          "udt": "text",
+          "name": "description",
+          "type": "text",
+          "nullable": "YES"
+        },
+        {
+          "udt": "timestamptz",
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "nullable": "NO"
+        }
+      ],
+      "constraints": [
+        {
+          "name": "weekly_reports_check",
+          "type": "c",
+          "definition": "CHECK (((period_start IS NULL) OR (period_finish IS NULL) OR (period_finish >= period_start)))"
+        },
+        {
+          "name": "weekly_reports_check1",
+          "type": "c",
+          "definition": "CHECK ((report_file_id <> metadata_file_id))"
+        },
+        {
+          "name": "weekly_reports_metadata_file_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (metadata_file_id) REFERENCES files(id)"
+        },
+        {
+          "name": "weekly_reports_metadata_file_id_key",
+          "type": "u",
+          "definition": "UNIQUE (metadata_file_id)"
+        },
+        {
+          "name": "weekly_reports_pkey",
+          "type": "p",
+          "definition": "PRIMARY KEY (id)"
+        },
+        {
+          "name": "weekly_reports_report_file_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (report_file_id) REFERENCES files(id)"
+        },
+        {
+          "name": "weekly_reports_report_file_id_key",
+          "type": "u",
+          "definition": "UNIQUE (report_file_id)"
+        },
+        {
+          "name": "weekly_reports_site_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (site_id) REFERENCES sites(id)"
+        },
+        {
+          "name": "weekly_reports_site_id_schedule_id_fkey",
+          "type": "f",
+          "definition": "FOREIGN KEY (site_id, schedule_id) REFERENCES schedules(site_id, id)"
+        },
+        {
+          "name": "weekly_reports_site_id_week_key",
+          "type": "u",
+          "definition": "UNIQUE (site_id, week)"
+        },
+        {
+          "name": "weekly_reports_week_check",
+          "type": "c",
+          "definition": "CHECK ((week ~ '^w[1-9][0-9]*$'::text))"
+        }
+      ]
+    }
+  ],
+  "views": [
+    {
+      "name": "change_request_decisions",
+      "definition": " SELECT e.request_id,\n    e.site_id,\n    e.actor_id AS decided_by,\n    r.to_organization_id AS recipient_org_id,\n        CASE e.event_type\n            WHEN 'request_accept'::text THEN 'accepted'::text\n            ELSE 'rejected'::text\n        END AS outcome,\n    e.body AS reason,\n    e.occurred_at AS decided_at,\n    a.occurred_at AS applied_at,\n    a.actor_id AS applied_by\n   FROM ((task_events e\n     JOIN change_requests r ON ((r.id = e.request_id)))\n     LEFT JOIN task_events a ON (((a.request_id = e.request_id) AND (a.event_type = ANY (ARRAY['schedule_apply'::text, 'work_apply'::text])))))\n  WHERE (e.event_type = ANY (ARRAY['request_accept'::text, 'request_reject'::text]));"
+    },
+    {
+      "name": "legacy_change_requests",
+      "definition": " SELECT id,\n    site_id,\n    schedule_id,\n    task_id,\n    requester_id AS sender_id,\n    from_organization_id AS sender_org_id,\n    to_organization_id AS recipient_org_id,\n    request_type AS kind,\n    proposed_work AS summary,\n    reason,\n    proposed_start,\n    proposed_finish,\n    created_at\n   FROM change_requests;"
+    },
+    {
+      "name": "legacy_site_memberships",
+      "definition": " SELECT site_id,\n    user_id,\n    organization_id,\n    role,\n    is_active AS active\n   FROM site_memberships;"
+    },
+    {
+      "name": "site_organizations",
+      "definition": " SELECT DISTINCT site_id,\n    organization_id\n   FROM site_memberships;"
+    },
+    {
+      "name": "task_review_queue",
+      "definition": " SELECT e.site_id,\n    e.schedule_id,\n    e.task_id,\n    e.id AS item_id,\n    e.occurred_at AS created_at,\n    'field'::text AS evidence_source,\n        CASE\n            WHEN ((e.details ->> 'completion_requested'::text) = 'true'::text) THEN 'completion_requested'::text\n            ELSE 'field_submitted'::text\n        END AS status\n   FROM task_events e\n  WHERE ((e.event_type = ANY (ARRAY['submission'::text, 'resubmission'::text])) AND (NOT (EXISTS ( SELECT 1\n           FROM task_events r\n          WHERE ((r.target_event_id = e.id) AND (r.event_type = ANY (ARRAY['review_accept'::text, 'review_reject'::text, 'completion_confirm'::text])))))))\nUNION ALL\n SELECT o.site_id,\n    o.schedule_id,\n    o.task_id,\n    o.id AS item_id,\n    o.created_at,\n    'ai'::text AS evidence_source,\n    'ai_review'::text AS status\n   FROM task_observations o\n  WHERE (NOT (EXISTS ( SELECT 1\n           FROM task_events r\n          WHERE ((r.observation_id = o.id) AND (r.event_type = ANY (ARRAY['review_accept'::text, 'review_reject'::text, 'completion_confirm'::text]))))))\nUNION ALL\n SELECT r.site_id,\n    r.schedule_id,\n    r.task_id,\n    r.id AS item_id,\n    r.created_at,\n    NULL::text AS evidence_source,\n    'extension_requested'::text AS status\n   FROM change_requests r\n  WHERE ((r.request_type = 'extension'::text) AND (r.status = 'pending'::text));"
+    },
+    {
+      "name": "workflow_cycles",
+      "definition": " SELECT (((details -> 'row'::text) ->> 'key'::text))::character varying AS key,\n    (((details -> 'row'::text) ->> 'site_code'::text))::character varying AS site_code,\n    (((details -> 'row'::text) ->> 'schedule_id'::text))::character varying AS schedule_id,\n    (((details -> 'row'::text) ->> 'week'::text))::integer AS week,\n    (((details -> 'row'::text) ->> 'batch_id'::text))::character varying AS batch_id,\n    (((details -> 'row'::text) ->> 'status'::text))::character varying AS status,\n    (((details -> 'row'::text) ->> 'updated_at'::text))::character varying AS updated_at\n   FROM task_events\n  WHERE ((event_type = 'workflow_state'::text) AND ((details ->> 'relation'::text) = 'workflow_cycles'::text));"
+    },
+    {
+      "name": "workflow_extension_context",
+      "definition": " SELECT (((details -> 'row'::text) ->> 'request_id'::text))::character varying AS request_id,\n    (((details -> 'row'::text) ->> 'site_code'::text))::character varying AS site_code,\n    (((details -> 'row'::text) ->> 'schedule_id'::text))::character varying AS schedule_id,\n    (((details -> 'row'::text) ->> 'task_id'::text))::character varying AS task_id,\n    (((details -> 'row'::text) ->> 'requested_week'::text))::integer AS requested_week,\n    (((details -> 'row'::text) ->> 'applies_from_week'::text))::integer AS applies_from_week,\n    (((details -> 'row'::text) ->> 'baseline_start'::text))::date AS baseline_start,\n    (((details -> 'row'::text) ->> 'baseline_end'::text))::date AS baseline_end,\n    (((details -> 'row'::text) ->> 'baseline_digest'::text))::character varying AS baseline_digest,\n    (((details -> 'row'::text) ->> 'created_at'::text))::character varying AS created_at\n   FROM task_events\n  WHERE ((event_type = 'workflow_state'::text) AND ((details ->> 'relation'::text) = 'workflow_extension_context'::text));"
+    },
+    {
+      "name": "workflow_manager_evidence",
+      "definition": " SELECT (((details -> 'row'::text) ->> 'id'::text))::character varying AS id,\n    (((details -> 'row'::text) ->> 'cycle_key'::text))::character varying AS cycle_key,\n    (((details -> 'row'::text) ->> 'task_id'::text))::character varying AS task_id,\n    (((details -> 'row'::text) -> 'payload'::text))::json AS payload,\n    (((details -> 'row'::text) ->> 'created_at'::text))::character varying AS created_at\n   FROM task_events\n  WHERE ((event_type = 'workflow_state'::text) AND ((details ->> 'relation'::text) = 'workflow_manager_evidence'::text));"
+    },
+    {
+      "name": "workflow_projects",
+      "definition": " SELECT (((details -> 'row'::text) ->> 'site_code'::text))::character varying AS site_code,\n    (((details -> 'row'::text) ->> 'schedule_id'::text))::character varying AS schedule_id,\n    (((details -> 'row'::text) ->> 'schedule_version'::text))::character varying AS schedule_version,\n    (((details -> 'row'::text) ->> 'project_start'::text))::character varying AS project_start,\n    (((details -> 'row'::text) ->> 'timezone'::text))::character varying AS timezone\n   FROM task_events\n  WHERE ((event_type = 'workflow_state'::text) AND ((details ->> 'relation'::text) = 'workflow_projects'::text));"
+    },
+    {
+      "name": "workflow_report_snapshots",
+      "definition": " SELECT (((details -> 'row'::text) ->> 'id'::text))::character varying AS id,\n    (((details -> 'row'::text) ->> 'cycle_key'::text))::character varying AS cycle_key,\n    (((details -> 'row'::text) ->> 'material_digest'::text))::character varying AS material_digest,\n    (((details -> 'row'::text) ->> 'status'::text))::character varying AS status,\n    (((details -> 'row'::text) -> 'payload'::text))::json AS payload,\n    (((details -> 'row'::text) ->> 'report_file_id'::text))::character varying AS report_file_id,\n    (((details -> 'row'::text) ->> 'created_at'::text))::character varying AS created_at\n   FROM task_events\n  WHERE ((event_type = 'workflow_state'::text) AND ((details ->> 'relation'::text) = 'workflow_report_snapshots'::text));"
+    },
+    {
+      "name": "workflow_vision_batches",
+      "definition": " SELECT (((details -> 'row'::text) ->> 'id'::text))::character varying AS id,\n    (((details -> 'row'::text) ->> 'cycle_key'::text))::character varying AS cycle_key,\n    (((details -> 'row'::text) ->> 'status'::text))::character varying AS status,\n    (((details -> 'row'::text) -> 'results'::text))::json AS results,\n    (((details -> 'row'::text) ->> 'digest'::text))::character varying AS digest,\n    (((details -> 'row'::text) ->> 'created_at'::text))::character varying AS created_at,\n    (((details -> 'row'::text) ->> 'updated_at'::text))::character varying AS updated_at\n   FROM task_events\n  WHERE ((event_type = 'workflow_state'::text) AND ((details ->> 'relation'::text) = 'workflow_vision_batches'::text));"
+    },
+    {
+      "name": "workflow_vision_deliveries",
+      "definition": " SELECT (((details -> 'row'::text) ->> 'batch_id'::text))::character varying AS batch_id,\n    (((details -> 'row'::text) ->> 'cycle_key'::text))::character varying AS cycle_key,\n    (((details -> 'row'::text) ->> 'revision'::text))::integer AS revision,\n    (((details -> 'row'::text) ->> 'result_file_id'::text))::character varying AS result_file_id,\n    (((details -> 'row'::text) ->> 'payload_digest'::text))::character varying AS payload_digest,\n    (((details -> 'row'::text) -> 'skipped'::text))::json AS skipped,\n    (((details -> 'row'::text) ->> 'created_at'::text))::character varying AS created_at\n   FROM task_events\n  WHERE ((event_type = 'workflow_state'::text) AND ((details ->> 'relation'::text) = 'workflow_vision_deliveries'::text));"
+    }
+  ]
+}

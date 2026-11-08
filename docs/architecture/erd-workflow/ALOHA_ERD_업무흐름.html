@@ -424,9 +424,9 @@ summary {
     전체 ERD
    </h1>
    <div class="state">
-    운영 11개 · 003 추가 1개 · 후속 설계 8개
+    운영 테이블 20개 · 호환·조회 뷰 12개
     <span class="tag">
-     목표 20개
+     005 적용 완료
     </span>
    </div>
    <p id="intro">
@@ -525,14 +525,14 @@ summary {
      </div>
      <div>
       <b>
-       6. 적용 전 검증
+       6. 적용 결과와 후속 검증
       </b>
-      복제 PostgreSQL에 003·후속 DDL 검증. 기존 보고서 파일 연결 보존, 연결 풀 사용자 컨텍스트와 파일 인가 확인.
+      복제 DB에서 005와 기존 workflow 호환을 검증하고 운영 적용 완료. 기존 보고서 파일 연결 보존, 연결 풀 사용자 컨텍스트와 파일 인가 확인.
      </div>
     </div>
    </details>
    <div class="footer">
-    실행 가능한 설계 HTML · 신규 PK/FK는 1차 연동안 · DB 연결 전 · 원본 조회 기록과 후속 필드 설계를 함께 표시합니다. 선택은 데이터 변경을 발생시키지 않습니다.
+    2026년 11월 9일 운영 스키마 확인 · 20개 테이블과 186개 필드 · 이 HTML은 구조 탐색용이며 업무별 경로에는 API 연결 계획이 포함됩니다.
     <br/>
     <a href="DB_테이블_필드_전후_RLS_CLS.md">
      전체 필드 트리와 RLS·CLS
@@ -544,11 +544,11 @@ summary {
    </div>
   </main>
   <script id="data" type="application/json">
-   {
+{
   "tables": [
     {
       "id": "sites",
-      "status": "필드 추가",
+      "status": "운영 적용",
       "fields": [
         {
           "name": "id",
@@ -608,7 +608,7 @@ summary {
     },
     {
       "id": "locations",
-      "status": "필드 추가",
+      "status": "운영 적용",
       "fields": [
         {
           "name": "id",
@@ -668,7 +668,7 @@ summary {
     },
     {
       "id": "files",
-      "status": "필드 추가",
+      "status": "운영 적용",
       "fields": [
         {
           "name": "id",
@@ -734,7 +734,7 @@ summary {
     },
     {
       "id": "schedules",
-      "status": "재사용",
+      "status": "운영 적용",
       "fields": [
         {
           "name": "id",
@@ -776,7 +776,7 @@ summary {
     },
     {
       "id": "schedule_sources",
-      "status": "재사용",
+      "status": "운영 적용",
       "fields": [
         {
           "name": "id",
@@ -812,7 +812,7 @@ summary {
     },
     {
       "id": "schedule_tasks",
-      "status": "필드 추가",
+      "status": "운영 적용",
       "fields": [
         {
           "name": "id",
@@ -914,7 +914,7 @@ summary {
     },
     {
       "id": "schedule_task_locations",
-      "status": "재사용",
+      "status": "운영 적용",
       "fields": [
         {
           "name": "site_id",
@@ -944,7 +944,7 @@ summary {
     },
     {
       "id": "daily_records",
-      "status": "재사용",
+      "status": "운영 적용",
       "fields": [
         {
           "name": "id",
@@ -1058,7 +1058,7 @@ summary {
     },
     {
       "id": "weekly_reports",
-      "status": "재사용",
+      "status": "운영 적용",
       "fields": [
         {
           "name": "id",
@@ -1124,7 +1124,7 @@ summary {
     },
     {
       "id": "gt_datasets",
-      "status": "재사용",
+      "status": "운영 적용",
       "fields": [
         {
           "name": "id",
@@ -1190,7 +1190,7 @@ summary {
     },
     {
       "id": "model_versions",
-      "status": "재사용",
+      "status": "운영 적용",
       "fields": [
         {
           "name": "id",
@@ -1280,7 +1280,7 @@ summary {
     },
     {
       "id": "question_archives",
-      "status": "003 추가",
+      "status": "운영 적용",
       "fields": [
         {
           "name": "id",
@@ -1328,7 +1328,7 @@ summary {
     },
     {
       "id": "organizations",
-      "status": "후속 신규",
+      "status": "운영 적용",
       "fields": [
         {
           "name": "id",
@@ -1352,7 +1352,7 @@ summary {
     },
     {
       "id": "users",
-      "status": "후속 신규",
+      "status": "운영 적용",
       "fields": [
         {
           "name": "id",
@@ -1388,7 +1388,7 @@ summary {
     },
     {
       "id": "site_memberships",
-      "status": "후속 신규",
+      "status": "운영 적용",
       "fields": [
         {
           "name": "site_id",
@@ -1412,7 +1412,7 @@ summary {
           "name": "role",
           "added": true,
           "use": "현장 단위 열람·등록·검토·승인 권한 구분",
-          "key": "PK"
+          "key": "—"
         },
         {
           "name": "is_active",
@@ -1424,7 +1424,7 @@ summary {
     },
     {
       "id": "change_requests",
-      "status": "후속 신규",
+      "status": "운영 적용",
       "fields": [
         {
           "name": "id",
@@ -1514,7 +1514,7 @@ summary {
     },
     {
       "id": "task_events",
-      "status": "후속 신규",
+      "status": "운영 적용",
       "fields": [
         {
           "name": "id",
@@ -1592,7 +1592,7 @@ summary {
     },
     {
       "id": "task_event_files",
-      "status": "후속 신규",
+      "status": "운영 적용",
       "fields": [
         {
           "name": "site_id",
@@ -1622,7 +1622,7 @@ summary {
     },
     {
       "id": "task_observations",
-      "status": "후속 신규",
+      "status": "운영 적용",
       "fields": [
         {
           "name": "id",
@@ -1706,7 +1706,7 @@ summary {
     },
     {
       "id": "agent_reports",
-      "status": "후속 신규",
+      "status": "운영 적용",
       "fields": [
         {
           "name": "id",
@@ -1785,9 +1785,49 @@ summary {
   ],
   "edges": [
     [
+      "users",
+      "agent_reports",
+      "approved_by"
+    ],
+    [
+      "files",
+      "agent_reports",
+      "site_id, report_file_id"
+    ],
+    [
+      "schedules",
+      "agent_reports",
+      "site_id, schedule_id"
+    ],
+    [
+      "schedule_tasks",
+      "change_requests",
+      "schedule_id, task_id"
+    ],
+    [
+      "site_memberships",
+      "change_requests",
+      "site_id, requester_id, from_organization_id"
+    ],
+    [
+      "schedules",
+      "change_requests",
+      "site_id, schedule_id"
+    ],
+    [
+      "organizations",
+      "change_requests",
+      "to_organization_id"
+    ],
+    [
       "files",
       "daily_records",
       "changes_file_id"
+    ],
+    [
+      "daily_records",
+      "daily_records",
+      "location_id, previous_record_id"
     ],
     [
       "model_versions",
@@ -1818,6 +1858,16 @@ summary {
       "schedules",
       "daily_records",
       "site_id, schedule_id"
+    ],
+    [
+      "sites",
+      "files",
+      "site_id"
+    ],
+    [
+      "users",
+      "files",
+      "uploaded_by"
     ],
     [
       "files",
@@ -1861,6 +1911,16 @@ summary {
     ],
     [
       "files",
+      "question_archives",
+      "archive_file_id"
+    ],
+    [
+      "sites",
+      "question_archives",
+      "site_id"
+    ],
+    [
+      "files",
       "schedule_sources",
       "file_id"
     ],
@@ -1890,14 +1950,104 @@ summary {
       "schedule_id"
     ],
     [
+      "schedule_tasks",
+      "schedule_tasks",
+      "schedule_id, predecessor_id"
+    ],
+    [
       "schedule_sources",
       "schedule_tasks",
       "schedule_id, schedule_source_id"
     ],
     [
+      "schedule_tasks",
+      "schedule_tasks",
+      "schedule_id, successor_id"
+    ],
+    [
       "sites",
       "schedules",
       "site_id"
+    ],
+    [
+      "organizations",
+      "site_memberships",
+      "organization_id"
+    ],
+    [
+      "sites",
+      "site_memberships",
+      "site_id"
+    ],
+    [
+      "users",
+      "site_memberships",
+      "user_id"
+    ],
+    [
+      "task_events",
+      "task_event_files",
+      "site_id, event_id"
+    ],
+    [
+      "files",
+      "task_event_files",
+      "site_id, file_id"
+    ],
+    [
+      "users",
+      "task_events",
+      "actor_id"
+    ],
+    [
+      "schedule_tasks",
+      "task_events",
+      "schedule_id, task_id"
+    ],
+    [
+      "sites",
+      "task_events",
+      "site_id"
+    ],
+    [
+      "schedules",
+      "task_events",
+      "site_id, schedule_id"
+    ],
+    [
+      "task_observations",
+      "task_events",
+      "site_id, schedule_id, task_id, observation_id"
+    ],
+    [
+      "change_requests",
+      "task_events",
+      "site_id, schedule_id, task_id, request_id"
+    ],
+    [
+      "task_events",
+      "task_events",
+      "site_id, target_event_id"
+    ],
+    [
+      "schedule_tasks",
+      "task_observations",
+      "schedule_id, task_id"
+    ],
+    [
+      "daily_records",
+      "task_observations",
+      "site_id, daily_record_id"
+    ],
+    [
+      "files",
+      "task_observations",
+      "site_id, overlay_file_id"
+    ],
+    [
+      "schedules",
+      "task_observations",
+      "site_id, schedule_id"
     ],
     [
       "files",
@@ -1918,176 +2068,6 @@ summary {
       "schedules",
       "weekly_reports",
       "site_id, schedule_id"
-    ],
-    [
-      "sites",
-      "files",
-      "site_id"
-    ],
-    [
-      "sites",
-      "site_memberships",
-      "site_id"
-    ],
-    [
-      "users",
-      "site_memberships",
-      "user_id"
-    ],
-    [
-      "organizations",
-      "site_memberships",
-      "organization_id"
-    ],
-    [
-      "sites",
-      "question_archives",
-      "site_id"
-    ],
-    [
-      "files",
-      "question_archives",
-      "archive_file_id"
-    ],
-    [
-      "sites",
-      "change_requests",
-      "site_id"
-    ],
-    [
-      "schedules",
-      "change_requests",
-      "schedule_id"
-    ],
-    [
-      "schedule_tasks",
-      "change_requests",
-      "task_id"
-    ],
-    [
-      "users",
-      "change_requests",
-      "requester_id"
-    ],
-    [
-      "organizations",
-      "change_requests",
-      "from_organization_id / to_organization_id"
-    ],
-    [
-      "sites",
-      "task_events",
-      "site_id"
-    ],
-    [
-      "schedule_tasks",
-      "task_events",
-      "task_id"
-    ],
-    [
-      "users",
-      "task_events",
-      "actor_id"
-    ],
-    [
-      "change_requests",
-      "task_events",
-      "request_id"
-    ],
-    [
-      "task_events",
-      "task_event_files",
-      "event_id"
-    ],
-    [
-      "files",
-      "task_event_files",
-      "file_id"
-    ],
-    [
-      "sites",
-      "task_event_files",
-      "site_id"
-    ],
-    [
-      "sites",
-      "task_observations",
-      "site_id"
-    ],
-    [
-      "schedule_tasks",
-      "task_observations",
-      "task_id"
-    ],
-    [
-      "daily_records",
-      "task_observations",
-      "daily_record_id"
-    ],
-    [
-      "files",
-      "task_observations",
-      "overlay_file_id"
-    ],
-    [
-      "task_observations",
-      "task_events",
-      "observation_id"
-    ],
-    [
-      "sites",
-      "agent_reports",
-      "site_id"
-    ],
-    [
-      "schedules",
-      "agent_reports",
-      "schedule_id"
-    ],
-    [
-      "files",
-      "agent_reports",
-      "report_file_id"
-    ],
-    [
-      "users",
-      "agent_reports",
-      "approved_by"
-    ],
-    [
-      "schedules",
-      "task_events",
-      "schedule_id"
-    ],
-    [
-      "schedules",
-      "task_observations",
-      "schedule_id"
-    ],
-    [
-      "users",
-      "files",
-      "uploaded_by"
-    ],
-    [
-      "task_events",
-      "task_events",
-      "target_event_id"
-    ],
-    [
-      "daily_records",
-      "daily_records",
-      "location_id, previous_record_id"
-    ],
-    [
-      "schedule_tasks",
-      "schedule_tasks",
-      "schedule_id, predecessor_id"
-    ],
-    [
-      "schedule_tasks",
-      "schedule_tasks",
-      "schedule_id, successor_id"
     ]
   ],
   "flows": [
@@ -2155,7 +2135,7 @@ summary {
         "task_events"
       ],
       "outputs": "간트 · 작업 분류 · 원본/유효 일정",
-      "guard": "분류 변경은 허용된 역할만 가능. VISION/MANUAL/REVIEW 경로를 별도 확정"
+      "guard": "processing_route는 ai / field / manual_check. 원본 일정과 적용 일정을 구분하고 변경 이력을 남깁니다."
     },
     {
       "name": "카메라·대표 사진",
@@ -2191,7 +2171,7 @@ summary {
         "task_observations"
       ],
       "outputs": "원본·오버레이 · 관측률 · 인식 불가 사유",
-      "guard": "같은 현장과 작업에 연결. 가림은 0%로 변환하지 않으며 완료 확인과 구분"
+      "guard": "같은 현장과 작업에 연결. 가림은 0%로 변환하지 않으며 완료 확인과 구분 기존 workflow API는 호환 뷰를 통해 공통 이력을 사용합니다. 정규 업무 API의 추가 연결이 필요합니다."
     },
     {
       "name": "현장 증빙·재제출",
@@ -2208,7 +2188,7 @@ summary {
         "task_event_files"
       ],
       "outputs": "증빙 차수와 본사 검토 대기",
-      "guard": "재제출은 기존 파일·제출을 보존. 업로드 완료와 파일 연결을 검증"
+      "guard": "재제출은 기존 파일·제출을 보존. 업로드 완료와 파일 연결을 검증 기존 workflow API는 호환 뷰를 통해 공통 이력을 사용합니다. 정규 업무 API의 추가 연결이 필요합니다."
     },
     {
       "name": "본사 검토·완료 확인",
@@ -2279,7 +2259,7 @@ summary {
         "files"
       ],
       "outputs": "생성 보고서 · 승인본 · 근거 ID",
-      "guard": "이번 주에 걸친 작업 전체 조회. 지난주부터 이어진 작업만 이전 자료 비교"
+      "guard": "이번 주에 걸친 작업 전체 조회. 지난주부터 이어진 작업만 이전 자료 비교 기존 workflow API는 호환 뷰를 통해 공통 이력을 사용합니다. 정규 업무 API의 추가 연결이 필요합니다."
     },
     {
       "name": "챗봇·질문 보관",
@@ -2301,7 +2281,7 @@ summary {
     }
   ]
 }
-  </script>
+</script>
   <script>
    'use strict';
 
@@ -2452,7 +2432,7 @@ function choose(index) {
     <div class="step"><b>${label}</b><span>${escapeHtml(body)}</span>
       <small>${escapeHtml(note)}</small></div>`).join('') : '';
   select('#guard').textContent = flow ? flow.guard
-    : '운영 11개, 003 추가 1개, 후속 설계 8개. 좌측 업무를 선택해 조회·저장 경로를 확인하세요.';
+    : '운영의 20개 테이블과 실제 외래 키입니다. 좌측 업무의 경로에는 추가 API 연결 계획이 포함됩니다.';
   if (flow) selectedTable = flow.writes[0] || flow.reads[0];
   renderGraph();
 }
