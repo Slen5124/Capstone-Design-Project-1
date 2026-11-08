@@ -84,6 +84,10 @@
 - [시스템 구조도·팀별 일정 분석](docs/planning/02-03-analysis.md)
 - [Git 산출물·이슈 초안·PR 순서](docs/planning/git-deliverables-plan.md)
 
+## ERD와 업무별 데이터 흐름
+
+[설계 자료와 실행 방법](docs/architecture/erd-workflow/README.md)에 쉬운 흐름도와 상세 ERD HTML을 정리했습니다. 왼쪽에서 업무를 선택하면 입력·처리·저장·출력이 바뀌고 관련 자료와 테이블을 확인할 수 있습니다. 20개 테이블의 목표 구조와 DB·AI 연결 계획을 설명하는 화면입니다.
+
 ## 협업 공간
 
 **[Notion 팀 페이지 바로가기](https://app.notion.com/p/1-8c15b79a9db5824eaf7a0103c8552003)**

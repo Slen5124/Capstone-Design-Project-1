@@ -1,0 +1,2475 @@
+<!DOCTYPE html>
+<html lang="ko">
+ <head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width,initial-scale=1" name="viewport"/>
+  <title>
+   ALOHA · ERD와 업무 흐름
+  </title>
+  <style>
+   * {
+  box-sizing:border-box
+}
+body {
+  margin:0;
+  background:#f5f4ef;
+  color:#20372d;
+  font:14px/1.65 "Malgun Gothic",sans-serif
+}
+button,input {
+  font:inherit
+}
+button {
+  cursor:pointer
+}
+button:focus-visible,a:focus-visible {
+  outline:3px solid #d2a648;
+  outline-offset:3px
+}
+aside {
+  position:fixed;
+  inset:0 auto 0 0;
+  width:238px;
+  background:#153a2d;
+  color:white;
+  padding:26px 16px;
+  overflow:auto
+}
+.brand {
+  font-size:27px;
+  letter-spacing:3px;
+  font-weight:bold
+}
+.sub {
+  font-size:11px;
+  color:#b7cbbd;
+  margin-bottom:24px
+}
+.nav-label {
+  font-size:11px;
+  color:#b7cbbd;
+  margin:20px 10px 9px
+}
+.nav button {
+  display:block;
+  border:0;
+  background:transparent;
+  color:#dae4da;
+  width:100%;
+  text-align:left;
+  padding:11px 12px;
+  border-radius:7px;
+  font-size:13px;
+  margin:3px 0
+}
+.nav button[aria-pressed=true] {
+  background:#e9efdf;
+  color:#183b2b;
+  font-weight:bold
+}
+.nav small {
+  color:#9ab5a4;
+  margin-right:7px
+}
+main {
+  margin-left:238px;
+  padding:27px 32px;
+  max-width:1900px
+}
+.kicker {
+  font-size:11px;
+  letter-spacing:2px;
+  color:#718575
+}
+h1 {
+  font-size:29px;
+  margin:7px 0
+}
+h2 {
+  font-size:18px;
+  margin:0
+}
+p {
+  margin:6px 0 17px;
+  color:#617166
+}
+.tag {
+  display:inline-block;
+  font-size:11px;
+  border-radius:5px;
+  padding:3px 8px;
+  background:#e2e9dd;
+  margin-left:7px
+}
+.state {
+  font-size:12px;
+  color:#777;
+  margin-bottom:14px
+}
+.flow {
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:12px;
+  margin-top:18px
+}
+.step {
+  border:1px solid #d8dfd2;
+  background:white;
+  border-radius:10px;
+  padding:16px;
+  min-height:132px
+}
+.step b {
+  display:block;
+  color:#54745d;
+  font-size:12px;
+  margin-bottom:8px
+}
+.step span {
+  display:block
+}
+.step small {
+  color:#64756b;
+  font-size:11px;
+  display:block;
+  margin-top:6px;
+  word-break:break-word
+}
+.guard {
+  border-left:3px solid #bd9c55;
+  padding:10px 14px;
+  background:#f0eadb;
+  margin:13px 0 22px;
+  font-size:12px
+}
+.toolbar {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+  background:white;
+  padding:14px 18px;
+  border:1px solid #d8dfd2;
+  border-radius:10px 10px 0 0
+}
+.controls {
+  display:flex;
+  gap:6px;
+  align-items:center
+}
+.controls button,.linkbtn {
+  border:1px solid #d2dbce;
+  background:#fff;
+  padding:5px 10px;
+  border-radius:5px;
+  color:#294b36
+}
+.legend {
+  display:flex;
+  gap:15px;
+  flex-wrap:wrap;
+  font-size:11px;
+  margin:10px 0;
+  color:#67796b
+}
+.legend i {
+  display:inline-block;
+  width:11px;
+  height:11px;
+  border-radius:3px;
+  margin-right:5px;
+  vertical-align:middle
+}
+.viewport {
+  overflow:auto;
+  height:650px;
+  border:1px solid #d8dfd2;
+  border-top:0;
+  background:#fbfcf9;
+  position:relative
+}
+#stage {
+  position:relative
+}
+#canvas {
+  position:absolute;
+  left:0;
+  top:0;
+  transform-origin:top left;
+  width:1700px;
+  height:1120px
+}
+svg {
+  position:absolute;
+  inset:0;
+  width:1700px;
+  height:1120px
+}
+.entity {
+  position:absolute;
+  width:286px;
+  height:155px;
+  text-align:left;
+  background:white;
+  border:1.5px solid #b4c6b6;
+  border-radius:9px;
+  padding:0;
+  overflow:hidden;
+  box-shadow:0 3px 10px #1d3c2b08
+}
+.entity .title {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:10px 12px;
+  background:#e6ece1;
+  font-size:14px;
+  gap:4px
+}
+.entity .title small {
+  font-size:10px;
+  font-weight:normal;
+  white-space:nowrap
+}
+.entity .keys {
+  padding:8px 12px;
+  font:12px/1.8 Consolas,"Malgun Gothic",sans-serif;
+  color:#627769
+}
+.entity .purpose {
+  font-size:11px;
+  color:#697b6f;
+  padding:0 12px
+}
+.entity.read {
+  border-color:#5080b6
+}
+.entity.read .title {
+  background:#e6eef8
+}
+.entity.write {
+  border-color:#368059
+}
+.entity.write .title {
+  background:#e0f1e5
+}
+.entity.both {
+  border-color:#8162a7
+}
+.entity.both .title {
+  background:#eee7f6
+}
+.entity.dim {
+  opacity:.25
+}
+.entity.selected {
+  box-shadow:0 0 0 3px #c3a254
+}
+.edge {
+  fill:none;
+  stroke:#9bad9e;
+  stroke-width:1.2;
+  opacity:.35
+}
+.edge.active {
+  stroke:#418866;
+  stroke-width:2;
+  opacity:.9
+}
+.edge.focus {
+  stroke:#b78b32;
+  stroke-width:2.5;
+  opacity:1
+}
+.inspector {
+  background:#fff;
+  border:1px solid #d8dfd2;
+  border-radius:9px;
+  padding:20px;
+  margin:18px 0
+}
+table {
+  border-collapse:collapse;
+  width:100%;
+  margin-top:12px
+}
+td,th {
+  padding:9px 12px;
+  text-align:left;
+  border-bottom:1px solid #ecf0e6;
+  font-size:12px
+}
+th {
+  color:#63795d
+}
+td code {
+  color:#234b37
+}
+.relations {
+  font-size:12px;
+  background:#f3f6ed;
+  padding:10px 14px;
+  line-height:2
+}
+details {
+  background:white;
+  border:1px solid #d8dfd2;
+  border-radius:9px;
+  margin:18px 0;
+  padding:17px 20px
+}
+summary {
+  cursor:pointer;
+  font-weight:bold
+}
+.plan {
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:12px;
+  margin-top:15px
+}
+.plan div {
+  background:#f3f6ed;
+  padding:13px;
+  border-radius:7px
+}
+.plan b {
+  display:block;
+  margin-bottom:5px
+}
+.footer {
+  font-size:11px;
+  color:#758478;
+  margin:18px 0
+}
+@media(max-width:900px) {
+  aside {
+    position:static;
+    width:100%;
+    padding:16px
+  }
+  .nav {
+    display:flex;
+    overflow:auto;
+    gap:5px
+  }
+  .nav button {
+    white-space:nowrap;
+    width:auto
+  }
+  .nav-label,.sub {
+    display:none
+  }
+  .brand {
+    font-size:20px
+  }
+  main {
+    margin:0;
+    padding:20px
+  }
+  .flow {
+    grid-template-columns:repeat(2,minmax(0,1fr))
+  }
+  .viewport {
+    height:480px
+  }
+  .plan {
+    grid-template-columns:1fr
+  }
+}
+@media(max-width:520px) {
+  .flow {
+    grid-template-columns:1fr
+  }
+  .step {
+    min-height:0
+  }
+  h1 {
+    font-size:24px
+  }
+  main {
+    padding:14px
+  }
+  .inspector {
+    overflow:auto
+  }
+}
+@media(prefers-reduced-motion:reduce) {
+  * {
+    scroll-behavior:auto!important
+  }
+}
+  </style>
+ </head>
+ <body>
+  <aside>
+   <div class="brand">
+    ALOHA
+   </div>
+   <div class="sub">
+    ERD &amp; WORKFLOW EXPLORER
+   </div>
+   <div class="nav-label">
+    업무를 선택하세요
+   </div>
+   <nav aria-label="업무별 데이터 흐름" class="nav" id="nav">
+   </nav>
+  </aside>
+  <main>
+   <div class="kicker">
+    DATABASE CONNECTION PLAN
+   </div>
+   <h1 id="heading">
+    전체 ERD
+   </h1>
+   <div class="state">
+    운영 11개 · 003 추가 1개 · 후속 설계 8개
+    <span class="tag">
+     목표 20개
+    </span>
+   </div>
+   <p id="intro">
+    테이블을 누르면 전체 필드와 참조 관계가 표시됩니다. 왼쪽 업무를 고르면 관련 데이터 흐름을 확인할 수 있습니다.
+   </p>
+   <section aria-label="선택 업무의 데이터 흐름" aria-live="polite" class="flow" id="flow">
+   </section>
+   <div class="guard" id="guard">
+   </div>
+   <div class="toolbar">
+    <h2>
+     테이블과 관계
+    </h2>
+    <div class="controls">
+     <button aria-label="ERD 축소" id="minus">
+      −
+     </button>
+     <output id="zoomlabel">
+      100%
+     </output>
+     <button aria-label="ERD 확대" id="plus">
+      ＋
+     </button>
+     <button id="fit">
+      화면 맞춤
+     </button>
+    </div>
+   </div>
+   <div class="viewport" id="viewport">
+    <div id="stage">
+     <div id="canvas">
+     </div>
+    </div>
+   </div>
+   <div class="legend">
+    <span>
+     <i style="background:#e6eef8">
+     </i>
+     조회
+    </span>
+    <span>
+     <i style="background:#e0f1e5">
+     </i>
+     저장
+    </span>
+    <span>
+     <i style="background:#eee7f6">
+     </i>
+     조회·저장
+    </span>
+    <span>
+     <i style="background:#d5b569">
+     </i>
+     선택 테이블 관계
+    </span>
+    <span>
+     화살표는 부모 → FK를 가진 자식 · 선택 FK와 UNIQUE는 상세 트리에서 확인
+    </span>
+   </div>
+   <section aria-live="polite" class="inspector" id="inspector">
+   </section>
+   <details open="">
+    <summary>
+     웹 구현 계획과 실제 연결 순서
+    </summary>
+    <div class="plan">
+     <div>
+      <b>
+       1. 현재 HTML에서 확인
+      </b>
+      좌측 업무 선택 → 입력·처리·저장·출력 표시 → ERD의 조회·저장 테이블 강조 → 테이블 클릭으로 필드 확인.
+     </div>
+     <div>
+      <b>
+       2. 현장 권한과 API
+      </b>
+      로그인·현장 소속·역할을 확정하고 현장·공정표 조회 API 연결. RLS와 컬럼 권한 도입 전 전체 컬럼 조회를 수정.
+     </div>
+     <div>
+      <b>
+       3. 제출과 요청
+      </b>
+      파일 저장, 증빙 제출·반려, 요청별 대화·결정·적용 API 연결. 동일 요청 동시 수락과 교차 매장 접근 차단 검증.
+     </div>
+     <div>
+      <b>
+       4. 카메라와 AI
+      </b>
+      대표 사진 수집, Vision 분석과 작업 매핑. 관측 불가와 실제 0%를 구분하고 원본·모델·수정본 추적.
+     </div>
+     <div>
+      <b>
+       5. 보고서와 챗봇
+      </b>
+      허용된 근거를 묶어 조회하고 AI 초안·본사 승인·Word 출력·질문 보관을 연결.
+     </div>
+     <div>
+      <b>
+       6. 적용 전 검증
+      </b>
+      복제 PostgreSQL에 003·후속 DDL 검증. 기존 보고서 파일 연결 보존, 연결 풀 사용자 컨텍스트와 파일 인가 확인.
+     </div>
+    </div>
+   </details>
+   <div class="footer">
+    실행 가능한 설계 HTML · 신규 PK/FK는 1차 연동안 · DB 연결 전 · 원본 조회 기록과 후속 필드 설계를 함께 표시합니다. 선택은 데이터 변경을 발생시키지 않습니다.
+    <br/>
+    <a href="DB_테이블_필드_전후_RLS_CLS.md">
+     전체 필드 트리와 RLS·CLS
+    </a>
+    ·
+    <a href="프로토타입_기능별_DB_API_연결표.md">
+     기능별 API 연결표
+    </a>
+   </div>
+  </main>
+  <script id="data" type="application/json">
+   {
+  "tables": [
+    {
+      "id": "sites",
+      "status": "필드 추가",
+      "fields": [
+        {
+          "name": "id",
+          "added": false,
+          "use": "고유 키 · 상세 조회와 다른 테이블의 연결 기준",
+          "key": "PK"
+        },
+        {
+          "name": "code",
+          "added": false,
+          "use": "조회 코드 · URL 또는 외부 시스템 연동",
+          "key": "—"
+        },
+        {
+          "name": "name",
+          "added": false,
+          "use": "표시명 · 목록 및 상세 화면",
+          "key": "—"
+        },
+        {
+          "name": "address",
+          "added": false,
+          "use": "매장 상세에서 주소 표시",
+          "key": "—"
+        },
+        {
+          "name": "timezone",
+          "added": false,
+          "use": "현지 날짜·시각 표시, 대표 사진과 보고 주차의 기준",
+          "key": "—"
+        },
+        {
+          "name": "description",
+          "added": false,
+          "use": "화면에 표시할 설명 또는 운영 메모",
+          "key": "—"
+        },
+        {
+          "name": "created_at",
+          "added": false,
+          "use": "등록 시각 · 최신순 조회와 이력 추적",
+          "key": "—"
+        },
+        {
+          "name": "latitude",
+          "added": true,
+          "use": "추가 이유 · 주소 재검색 없이 지도 핀의 위도 확정",
+          "key": "—"
+        },
+        {
+          "name": "longitude",
+          "added": true,
+          "use": "추가 이유 · 주소 재검색 없이 지도 핀의 경도 확정",
+          "key": "—"
+        }
+      ]
+    },
+    {
+      "id": "locations",
+      "status": "필드 추가",
+      "fields": [
+        {
+          "name": "id",
+          "added": false,
+          "use": "고유 키 · 상세 조회와 다른 테이블의 연결 기준",
+          "key": "PK"
+        },
+        {
+          "name": "site_id",
+          "added": false,
+          "use": "매장 연결 · 현장 범위 조회와 RLS 검사",
+          "key": "FK"
+        },
+        {
+          "name": "code",
+          "added": false,
+          "use": "조회 코드 · URL 또는 외부 시스템 연동",
+          "key": "—"
+        },
+        {
+          "name": "name",
+          "added": false,
+          "use": "표시명 · 목록 및 상세 화면",
+          "key": "—"
+        },
+        {
+          "name": "description",
+          "added": false,
+          "use": "화면에 표시할 설명 또는 운영 메모",
+          "key": "—"
+        },
+        {
+          "name": "created_at",
+          "added": false,
+          "use": "등록 시각 · 최신순 조회와 이력 추적",
+          "key": "—"
+        },
+        {
+          "name": "camera_provider",
+          "added": true,
+          "use": "추가 이유 · OxBlue 등 공급자에 맞는 수집 경로 선택",
+          "key": "—"
+        },
+        {
+          "name": "camera_external_id",
+          "added": true,
+          "use": "추가 이유 · 공급자에서 정확한 카메라·촬영 지점 조회",
+          "key": "—"
+        },
+        {
+          "name": "credential_ref",
+          "added": true,
+          "use": "추가 이유 · 카메라 수집기가 비밀 저장소의 인증 정보를 찾는 참조값",
+          "key": "—"
+        }
+      ]
+    },
+    {
+      "id": "files",
+      "status": "필드 추가",
+      "fields": [
+        {
+          "name": "id",
+          "added": false,
+          "use": "고유 키 · 상세 조회와 다른 테이블의 연결 기준",
+          "key": "PK"
+        },
+        {
+          "name": "relative_path",
+          "added": false,
+          "use": "파일 서비스 내부에서 바이트 위치 확인 · 브라우저 응답에서 제외",
+          "key": "—"
+        },
+        {
+          "name": "kind",
+          "added": false,
+          "use": "PDF·사진·JSON·첨부 유형별 검증과 조회",
+          "key": "—"
+        },
+        {
+          "name": "size_bytes",
+          "added": false,
+          "use": "업로드 용량 제한과 등록 후 파일 검증",
+          "key": "—"
+        },
+        {
+          "name": "sha256",
+          "added": false,
+          "use": "파일 무결성 확인 및 동일 원본 판별",
+          "key": "—"
+        },
+        {
+          "name": "status",
+          "added": false,
+          "use": "업로드 준비·검증·실패 상태",
+          "key": "—"
+        },
+        {
+          "name": "created_at",
+          "added": false,
+          "use": "등록 시각 · 최신순 조회와 이력 추적",
+          "key": "—"
+        },
+        {
+          "name": "site_id",
+          "added": true,
+          "use": "추가 이유 · 파일 소유 매장을 지정해 다른 매장으로 연결·다운로드되는 것을 방지",
+          "key": "FK"
+        },
+        {
+          "name": "visibility",
+          "added": true,
+          "use": "추가 이유 · 현장 공유 파일과 모델·학습자료 등 내부 파일 구분",
+          "key": "—"
+        },
+        {
+          "name": "uploaded_by",
+          "added": true,
+          "use": "추가 이유 · 검증·연결 전 업로드의 접근자와 등록 이력 확인",
+          "key": "FK"
+        }
+      ]
+    },
+    {
+      "id": "schedules",
+      "status": "재사용",
+      "fields": [
+        {
+          "name": "id",
+          "added": false,
+          "use": "고유 키 · 상세 조회와 다른 테이블의 연결 기준",
+          "key": "PK"
+        },
+        {
+          "name": "site_id",
+          "added": false,
+          "use": "매장 연결 · 현장 범위 조회와 RLS 검사",
+          "key": "FK"
+        },
+        {
+          "name": "version",
+          "added": false,
+          "use": "간트 버전 선택과 보고서·이력의 기준 버전 고정",
+          "key": "—"
+        },
+        {
+          "name": "document_date",
+          "added": false,
+          "use": "공정표 원본 문서 날짜 표시",
+          "key": "—"
+        },
+        {
+          "name": "description",
+          "added": false,
+          "use": "화면에 표시할 설명 또는 운영 메모",
+          "key": "—"
+        },
+        {
+          "name": "created_at",
+          "added": false,
+          "use": "등록 시각 · 최신순 조회와 이력 추적",
+          "key": "—"
+        }
+      ]
+    },
+    {
+      "id": "schedule_sources",
+      "status": "재사용",
+      "fields": [
+        {
+          "name": "id",
+          "added": false,
+          "use": "고유 키 · 상세 조회와 다른 테이블의 연결 기준",
+          "key": "PK"
+        },
+        {
+          "name": "schedule_id",
+          "added": false,
+          "use": "공정표 버전 연결 · 간트와 보고서 범위 지정",
+          "key": "FK"
+        },
+        {
+          "name": "file_id",
+          "added": false,
+          "use": "해당 버전의 원본 공정표 PDF 조회",
+          "key": "FK"
+        },
+        {
+          "name": "display_order",
+          "added": false,
+          "use": "원본 순서 재현 · 목록 정렬",
+          "key": "—"
+        },
+        {
+          "name": "description",
+          "added": false,
+          "use": "화면에 표시할 설명 또는 운영 메모",
+          "key": "—"
+        }
+      ]
+    },
+    {
+      "id": "schedule_tasks",
+      "status": "필드 추가",
+      "fields": [
+        {
+          "name": "id",
+          "added": false,
+          "use": "고유 키 · 상세 조회와 다른 테이블의 연결 기준",
+          "key": "PK"
+        },
+        {
+          "name": "schedule_id",
+          "added": false,
+          "use": "공정표 버전 연결 · 간트와 보고서 범위 지정",
+          "key": "FK"
+        },
+        {
+          "name": "schedule_source_id",
+          "added": false,
+          "use": "작업이 추출된 원본 PDF 식별",
+          "key": "FK"
+        },
+        {
+          "name": "source_task_id",
+          "added": false,
+          "use": "PDF에 표시된 작업 번호 · 대조용. DB 관계는 id 사용",
+          "key": "—"
+        },
+        {
+          "name": "display_order",
+          "added": false,
+          "use": "원본 순서 재현 · 목록 정렬",
+          "key": "—"
+        },
+        {
+          "name": "week",
+          "added": false,
+          "use": "원본 주차 표기 보존 · 여러 주에 걸친 작업은 날짜 범위로 조회",
+          "key": "—"
+        },
+        {
+          "name": "task_name",
+          "added": false,
+          "use": "간트·작업 검토·주간 보고서에 작업명 표시",
+          "key": "—"
+        },
+        {
+          "name": "start",
+          "added": false,
+          "use": "간트의 원본 계획 시작일 · 변경 비교 기준",
+          "key": "—"
+        },
+        {
+          "name": "finish",
+          "added": false,
+          "use": "간트의 원본 계획 종료일 · 변경 비교 기준",
+          "key": "—"
+        },
+        {
+          "name": "predecessor_id",
+          "added": false,
+          "use": "선행 작업 표시와 기존 선후 관계 검증",
+          "key": "FK"
+        },
+        {
+          "name": "successor_id",
+          "added": false,
+          "use": "후행 작업 표시와 기존 선후 관계 검증",
+          "key": "FK"
+        },
+        {
+          "name": "surface_type",
+          "added": false,
+          "use": "기존 벽·바닥·천장 태그 조회 호환",
+          "key": "—"
+        },
+        {
+          "name": "category_codes",
+          "added": true,
+          "use": "추가 이유 · 벽+설비처럼 작업에 복수 분류를 부여",
+          "key": "—"
+        },
+        {
+          "name": "processing_route",
+          "added": true,
+          "use": "추가 이유 · 분류와 별도로 AI 관측·현장 증빙·보류 경로 확정",
+          "key": "—"
+        },
+        {
+          "name": "effective_start",
+          "added": true,
+          "use": "추가 이유 · 적용된 시작일을 간트에서 원본과 함께 조회",
+          "key": "—"
+        },
+        {
+          "name": "effective_finish",
+          "added": true,
+          "use": "추가 이유 · 적용된 종료일로 간트·지연·이월을 계산",
+          "key": "—"
+        }
+      ]
+    },
+    {
+      "id": "schedule_task_locations",
+      "status": "재사용",
+      "fields": [
+        {
+          "name": "site_id",
+          "added": false,
+          "use": "매장 연결 · 현장 범위 조회와 RLS 검사",
+          "key": "FK"
+        },
+        {
+          "name": "schedule_id",
+          "added": false,
+          "use": "공정표 버전 연결 · 간트와 보고서 범위 지정",
+          "key": "FK"
+        },
+        {
+          "name": "task_id",
+          "added": false,
+          "use": "작업 UUID 연결 · 작업별 상세와 이력 조회",
+          "key": "PK / FK"
+        },
+        {
+          "name": "location_id",
+          "added": false,
+          "use": "작업에 관련된 촬영 위치 조회 · 작업별 관측 매핑의 후보 범위",
+          "key": "PK / FK"
+        }
+      ]
+    },
+    {
+      "id": "daily_records",
+      "status": "재사용",
+      "fields": [
+        {
+          "name": "id",
+          "added": false,
+          "use": "고유 키 · 상세 조회와 다른 테이블의 연결 기준",
+          "key": "PK"
+        },
+        {
+          "name": "site_id",
+          "added": false,
+          "use": "매장 연결 · 현장 범위 조회와 RLS 검사",
+          "key": "FK"
+        },
+        {
+          "name": "location_id",
+          "added": false,
+          "use": "대표 사진을 찍은 고정 위치 식별",
+          "key": "FK"
+        },
+        {
+          "name": "observation_date",
+          "added": false,
+          "use": "현지 날짜 기준 하루 대표 사진 조회",
+          "key": "—"
+        },
+        {
+          "name": "captured_at",
+          "added": false,
+          "use": "실제 촬영 시각과 시간대 표시",
+          "key": "—"
+        },
+        {
+          "name": "photo_file_id",
+          "added": false,
+          "use": "대표 원본 사진 열기",
+          "key": "FK"
+        },
+        {
+          "name": "model_version_id",
+          "added": false,
+          "use": "사진 분석에 사용한 모델 버전 추적",
+          "key": "FK"
+        },
+        {
+          "name": "result_file_id",
+          "added": false,
+          "use": "Vision 원본 결과 JSON 조회",
+          "key": "FK"
+        },
+        {
+          "name": "changes_file_id",
+          "added": false,
+          "use": "이전 관측과의 변화 JSON 조회",
+          "key": "FK"
+        },
+        {
+          "name": "report_file_id",
+          "added": false,
+          "use": "기존 일일 관측 Markdown 조회",
+          "key": "FK"
+        },
+        {
+          "name": "previous_record_id",
+          "added": false,
+          "use": "같은 위치의 비교 대상 일일 기록 연결",
+          "key": "FK"
+        },
+        {
+          "name": "schedule_id",
+          "added": false,
+          "use": "공정표 버전 연결 · 간트와 보고서 범위 지정",
+          "key": "FK"
+        },
+        {
+          "name": "comparison_rule_version",
+          "added": false,
+          "use": "변화 계산에 사용한 비교 규칙 재현",
+          "key": "—"
+        },
+        {
+          "name": "status",
+          "added": false,
+          "use": "처리 상태 · 목록 필터와 허용 작업 판정",
+          "key": "—"
+        },
+        {
+          "name": "description",
+          "added": false,
+          "use": "화면에 표시할 설명 또는 운영 메모",
+          "key": "—"
+        },
+        {
+          "name": "error_message",
+          "added": false,
+          "use": "수집·분석 실패 원인 추적 · 운영자용",
+          "key": "—"
+        },
+        {
+          "name": "created_at",
+          "added": false,
+          "use": "등록 시각 · 최신순 조회와 이력 추적",
+          "key": "—"
+        },
+        {
+          "name": "updated_at",
+          "added": false,
+          "use": "처리 상태가 마지막으로 바뀐 시각",
+          "key": "—"
+        }
+      ]
+    },
+    {
+      "id": "weekly_reports",
+      "status": "재사용",
+      "fields": [
+        {
+          "name": "id",
+          "added": false,
+          "use": "고유 키 · 상세 조회와 다른 테이블의 연결 기준",
+          "key": "PK"
+        },
+        {
+          "name": "site_id",
+          "added": false,
+          "use": "매장 연결 · 현장 범위 조회와 RLS 검사",
+          "key": "FK"
+        },
+        {
+          "name": "schedule_id",
+          "added": false,
+          "use": "공정표 버전 연결 · 간트와 보고서 범위 지정",
+          "key": "FK"
+        },
+        {
+          "name": "week",
+          "added": false,
+          "use": "주차 표기와 필터. 기간이 겹치는 작업 조회는 일정으로 계산",
+          "key": "—"
+        },
+        {
+          "name": "period_start",
+          "added": false,
+          "use": "집계·보고 기간 시작일",
+          "key": "—"
+        },
+        {
+          "name": "period_finish",
+          "added": false,
+          "use": "집계·보고 기간 종료일",
+          "key": "—"
+        },
+        {
+          "name": "report_file_id",
+          "added": false,
+          "use": "제공받은 원본 주간 PDF 다운로드",
+          "key": "FK"
+        },
+        {
+          "name": "metadata_file_id",
+          "added": false,
+          "use": "원본 주간 보고서의 메타데이터 JSON 조회 · 기존 연결 유지",
+          "key": "FK"
+        },
+        {
+          "name": "description",
+          "added": false,
+          "use": "화면에 표시할 설명 또는 운영 메모",
+          "key": "—"
+        },
+        {
+          "name": "created_at",
+          "added": false,
+          "use": "등록 시각 · 최신순 조회와 이력 추적",
+          "key": "—"
+        }
+      ]
+    },
+    {
+      "id": "gt_datasets",
+      "status": "재사용",
+      "fields": [
+        {
+          "name": "id",
+          "added": false,
+          "use": "고유 키 · 상세 조회와 다른 테이블의 연결 기준",
+          "key": "PK"
+        },
+        {
+          "name": "name",
+          "added": false,
+          "use": "표시명 · 목록 및 상세 화면",
+          "key": "—"
+        },
+        {
+          "name": "version",
+          "added": false,
+          "use": "버전 선택과 과거 데이터 재현",
+          "key": "—"
+        },
+        {
+          "name": "archive_file_id",
+          "added": false,
+          "use": "학습 데이터 ZIP 보관 및 승인된 운영자 다운로드",
+          "key": "FK"
+        },
+        {
+          "name": "manifest_file_id",
+          "added": false,
+          "use": "데이터 구성·분할·라벨 목록 조회",
+          "key": "FK"
+        },
+        {
+          "name": "label_schema_version",
+          "added": false,
+          "use": "라벨 정의와 버전 확인",
+          "key": "—"
+        },
+        {
+          "name": "preprocessing_tool",
+          "added": false,
+          "use": "전처리 환경 재현",
+          "key": "—"
+        },
+        {
+          "name": "review_status",
+          "added": false,
+          "use": "데이터 검수·승인 상태",
+          "key": "—"
+        },
+        {
+          "name": "description",
+          "added": false,
+          "use": "화면에 표시할 설명 또는 운영 메모",
+          "key": "—"
+        },
+        {
+          "name": "created_at",
+          "added": false,
+          "use": "등록 시각 · 최신순 조회와 이력 추적",
+          "key": "—"
+        }
+      ]
+    },
+    {
+      "id": "model_versions",
+      "status": "재사용",
+      "fields": [
+        {
+          "name": "id",
+          "added": false,
+          "use": "고유 키 · 상세 조회와 다른 테이블의 연결 기준",
+          "key": "PK"
+        },
+        {
+          "name": "model_type",
+          "added": false,
+          "use": "추론 모델 계열 선택",
+          "key": "—"
+        },
+        {
+          "name": "version",
+          "added": false,
+          "use": "버전 선택과 과거 데이터 재현",
+          "key": "—"
+        },
+        {
+          "name": "backbone",
+          "added": false,
+          "use": "모델 구조 확인과 실행 재현",
+          "key": "—"
+        },
+        {
+          "name": "gt_dataset_id",
+          "added": false,
+          "use": "학습에 사용한 데이터셋 출처 추적",
+          "key": "FK"
+        },
+        {
+          "name": "weights_file_id",
+          "added": false,
+          "use": "추론에 필요한 모델 가중치 로드",
+          "key": "FK"
+        },
+        {
+          "name": "config_file_id",
+          "added": false,
+          "use": "모델 실행 설정 로드",
+          "key": "FK"
+        },
+        {
+          "name": "classes_file_id",
+          "added": false,
+          "use": "모델 출력 클래스 해석",
+          "key": "FK"
+        },
+        {
+          "name": "metrics_file_id",
+          "added": false,
+          "use": "성능 결과 조회",
+          "key": "FK"
+        },
+        {
+          "name": "trained_at",
+          "added": false,
+          "use": "학습 기준 시각 확인",
+          "key": "—"
+        },
+        {
+          "name": "code_version",
+          "added": false,
+          "use": "실행에 필요한 코드 버전 추적",
+          "key": "—"
+        },
+        {
+          "name": "library_versions",
+          "added": false,
+          "use": "실행에 필요한 라이브러리 버전 추적",
+          "key": "—"
+        },
+        {
+          "name": "description",
+          "added": false,
+          "use": "화면에 표시할 설명 또는 운영 메모",
+          "key": "—"
+        },
+        {
+          "name": "created_at",
+          "added": false,
+          "use": "등록 시각 · 최신순 조회와 이력 추적",
+          "key": "—"
+        }
+      ]
+    },
+    {
+      "id": "question_archives",
+      "status": "003 추가",
+      "fields": [
+        {
+          "name": "id",
+          "added": true,
+          "use": "고유 키 · 상세 조회와 다른 테이블의 연결 기준",
+          "key": "PK"
+        },
+        {
+          "name": "site_id",
+          "added": true,
+          "use": "매장 연결 · 현장 범위 조회와 RLS 검사",
+          "key": "FK"
+        },
+        {
+          "name": "title",
+          "added": true,
+          "use": "현장별 질문 보관 목록에 표시",
+          "key": "—"
+        },
+        {
+          "name": "asked_at",
+          "added": true,
+          "use": "질문 날짜 검색과 정렬",
+          "key": "—"
+        },
+        {
+          "name": "archive_file_id",
+          "added": true,
+          "use": "질문·답변·근거 Markdown 열기",
+          "key": "FK"
+        },
+        {
+          "name": "description",
+          "added": true,
+          "use": "화면에 표시할 설명 또는 운영 메모",
+          "key": "—"
+        },
+        {
+          "name": "created_at",
+          "added": true,
+          "use": "등록 시각 · 최신순 조회와 이력 추적",
+          "key": "—"
+        }
+      ]
+    },
+    {
+      "id": "organizations",
+      "status": "후속 신규",
+      "fields": [
+        {
+          "name": "id",
+          "added": true,
+          "use": "고유 키 · 상세 조회와 다른 테이블의 연결 기준",
+          "key": "PK"
+        },
+        {
+          "name": "name",
+          "added": true,
+          "use": "표시명 · 목록 및 상세 화면",
+          "key": "—"
+        },
+        {
+          "name": "organization_type",
+          "added": true,
+          "use": "본사·시공사·협력사 구분과 관리 화면 표시",
+          "key": "—"
+        }
+      ]
+    },
+    {
+      "id": "users",
+      "status": "후속 신규",
+      "fields": [
+        {
+          "name": "id",
+          "added": true,
+          "use": "고유 키 · 상세 조회와 다른 테이블의 연결 기준",
+          "key": "PK"
+        },
+        {
+          "name": "auth_provider",
+          "added": true,
+          "use": "로그인 발급 기관 구분 · 인증 전용",
+          "key": "—"
+        },
+        {
+          "name": "auth_subject",
+          "added": true,
+          "use": "인증 기관의 계정을 내부 사용자와 연결 · 인증 전용",
+          "key": "—"
+        },
+        {
+          "name": "display_name",
+          "added": true,
+          "use": "요청 대화·증빙·검토 담당자 이름 표시",
+          "key": "—"
+        },
+        {
+          "name": "is_active",
+          "added": true,
+          "use": "비활성 계정의 업무 접근 차단",
+          "key": "—"
+        }
+      ]
+    },
+    {
+      "id": "site_memberships",
+      "status": "후속 신규",
+      "fields": [
+        {
+          "name": "site_id",
+          "added": true,
+          "use": "매장 연결 · 현장 범위 조회와 RLS 검사",
+          "key": "PK / FK"
+        },
+        {
+          "name": "user_id",
+          "added": true,
+          "use": "활성 소속 조회 · 사용자별 현장 접근 권한 판단",
+          "key": "PK / FK"
+        },
+        {
+          "name": "organization_id",
+          "added": true,
+          "use": "현장 안에서 본사·현장 회사 및 요청 당사자 확인",
+          "key": "PK / FK"
+        },
+        {
+          "name": "role",
+          "added": true,
+          "use": "현장 단위 열람·등록·검토·승인 권한 구분",
+          "key": "PK"
+        },
+        {
+          "name": "is_active",
+          "added": true,
+          "use": "종료된 현장 권한 회수",
+          "key": "—"
+        }
+      ]
+    },
+    {
+      "id": "change_requests",
+      "status": "후속 신규",
+      "fields": [
+        {
+          "name": "id",
+          "added": true,
+          "use": "고유 키 · 상세 조회와 다른 테이블의 연결 기준",
+          "key": "PK"
+        },
+        {
+          "name": "site_id",
+          "added": true,
+          "use": "매장 연결 · 현장 범위 조회와 RLS 검사",
+          "key": "FK"
+        },
+        {
+          "name": "schedule_id",
+          "added": true,
+          "use": "공정표 버전 연결 · 간트와 보고서 범위 지정",
+          "key": "FK"
+        },
+        {
+          "name": "task_id",
+          "added": true,
+          "use": "작업 UUID 연결 · 작업별 상세와 이력 조회",
+          "key": "FK"
+        },
+        {
+          "name": "requester_id",
+          "added": true,
+          "use": "요청 작성자 표시와 추적",
+          "key": "FK"
+        },
+        {
+          "name": "from_organization_id",
+          "added": true,
+          "use": "발신 회사 식별 · 요청과 대화 접근 판단",
+          "key": "FK"
+        },
+        {
+          "name": "to_organization_id",
+          "added": true,
+          "use": "수신 회사 식별 · 결정할 수 있는 담당자 판단",
+          "key": "FK"
+        },
+        {
+          "name": "request_type",
+          "added": true,
+          "use": "일정 변경·작업 변경에 맞는 입력 화면과 검증",
+          "key": "—"
+        },
+        {
+          "name": "proposed_start",
+          "added": true,
+          "use": "현재 일정과 비교할 제안 시작일",
+          "key": "—"
+        },
+        {
+          "name": "proposed_finish",
+          "added": true,
+          "use": "현재 일정과 비교할 제안 종료일",
+          "key": "—"
+        },
+        {
+          "name": "proposed_work",
+          "added": true,
+          "use": "변경하려는 작업 범위나 시공 내용",
+          "key": "—"
+        },
+        {
+          "name": "reason",
+          "added": true,
+          "use": "요청 상세와 검토에 사용할 변경 사유",
+          "key": "—"
+        },
+        {
+          "name": "status",
+          "added": true,
+          "use": "처리 상태 · 목록 필터와 허용 작업 판정",
+          "key": "—"
+        },
+        {
+          "name": "created_at",
+          "added": true,
+          "use": "등록 시각 · 최신순 조회와 이력 추적",
+          "key": "—"
+        }
+      ]
+    },
+    {
+      "id": "task_events",
+      "status": "후속 신규",
+      "fields": [
+        {
+          "name": "id",
+          "added": true,
+          "use": "고유 키 · 상세 조회와 다른 테이블의 연결 기준",
+          "key": "PK"
+        },
+        {
+          "name": "site_id",
+          "added": true,
+          "use": "매장 연결 · 현장 범위 조회와 RLS 검사",
+          "key": "FK"
+        },
+        {
+          "name": "schedule_id",
+          "added": true,
+          "use": "공정표 버전 연결 · 간트와 보고서 범위 지정",
+          "key": "FK"
+        },
+        {
+          "name": "task_id",
+          "added": true,
+          "use": "작업 UUID 연결 · 작업별 상세와 이력 조회",
+          "key": "FK"
+        },
+        {
+          "name": "actor_id",
+          "added": true,
+          "use": "제출·댓글·검토·승인 행위자 표시 및 추적",
+          "key": "FK"
+        },
+        {
+          "name": "event_type",
+          "added": true,
+          "use": "제출·재제출·검토·대화·결정·일정 적용을 구분",
+          "key": "—"
+        },
+        {
+          "name": "occurred_at",
+          "added": true,
+          "use": "작업 이력·대화의 시간순과 주간 보고 범위",
+          "key": "—"
+        },
+        {
+          "name": "request_id",
+          "added": true,
+          "use": "해당 요청의 대화·결정·적용에 연결 · 다른 요청과 분리",
+          "key": "FK"
+        },
+        {
+          "name": "target_event_id",
+          "added": true,
+          "use": "반려나 확인이 어느 제출 건에 대한 것인지 연결",
+          "key": "FK"
+        },
+        {
+          "name": "observation_id",
+          "added": true,
+          "use": "AI 결과 수락·반려의 대상 관측 버전 연결",
+          "key": "FK"
+        },
+        {
+          "name": "body",
+          "added": true,
+          "use": "대화 본문 또는 담당자가 남긴 작업 내용",
+          "key": "—"
+        },
+        {
+          "name": "details",
+          "added": true,
+          "use": "이벤트별 부가정보 · 반려 사유, 제출 차수, 변경 전후 값",
+          "key": "—"
+        }
+      ]
+    },
+    {
+      "id": "task_event_files",
+      "status": "후속 신규",
+      "fields": [
+        {
+          "name": "site_id",
+          "added": true,
+          "use": "매장 연결 · 현장 범위 조회와 RLS 검사",
+          "key": "FK"
+        },
+        {
+          "name": "event_id",
+          "added": true,
+          "use": "어느 제출·대화의 첨부인지 연결하고 부모 권한 확인",
+          "key": "PK / FK"
+        },
+        {
+          "name": "file_id",
+          "added": true,
+          "use": "파일 ID 연결 · 권한 검사 후 파일 조회",
+          "key": "PK / FK"
+        },
+        {
+          "name": "sort_order",
+          "added": true,
+          "use": "한 이벤트에 첨부한 파일의 화면 표시 순서",
+          "key": "—"
+        }
+      ]
+    },
+    {
+      "id": "task_observations",
+      "status": "후속 신규",
+      "fields": [
+        {
+          "name": "id",
+          "added": true,
+          "use": "고유 키 · 상세 조회와 다른 테이블의 연결 기준",
+          "key": "PK"
+        },
+        {
+          "name": "site_id",
+          "added": true,
+          "use": "매장 연결 · 현장 범위 조회와 RLS 검사",
+          "key": "FK"
+        },
+        {
+          "name": "schedule_id",
+          "added": true,
+          "use": "공정표 버전 연결 · 간트와 보고서 범위 지정",
+          "key": "FK"
+        },
+        {
+          "name": "task_id",
+          "added": true,
+          "use": "작업 UUID 연결 · 작업별 상세와 이력 조회",
+          "key": "FK"
+        },
+        {
+          "name": "daily_record_id",
+          "added": true,
+          "use": "근거가 된 대표 원본 사진·분석 JSON 연결",
+          "key": "FK"
+        },
+        {
+          "name": "target_key",
+          "added": true,
+          "use": "벽면 등 관측 대상 식별 · 작업에 명시적으로 연결",
+          "key": "—"
+        },
+        {
+          "name": "view_key",
+          "added": true,
+          "use": "시야별 결과 식별과 비교",
+          "key": "—"
+        },
+        {
+          "name": "revision",
+          "added": true,
+          "use": "같은 데이터의 수정본 순서 · 덮어쓰기 없이 보존",
+          "key": "—"
+        },
+        {
+          "name": "installed_ratio",
+          "added": true,
+          "use": "관측 가능한 영역의 설치 비율 · 작업 검토와 보고서 표시",
+          "key": "—"
+        },
+        {
+          "name": "status",
+          "added": true,
+          "use": "처리 상태 · 목록 필터와 허용 작업 판정",
+          "key": "—"
+        },
+        {
+          "name": "hold_reason",
+          "added": true,
+          "use": "가림·시야 부족·판단 불가 사유 표시",
+          "key": "—"
+        },
+        {
+          "name": "overlay_file_id",
+          "added": true,
+          "use": "원본과 분석 오버레이 비교",
+          "key": "FK"
+        },
+        {
+          "name": "created_at",
+          "added": true,
+          "use": "등록 시각 · 최신순 조회와 이력 추적",
+          "key": "—"
+        }
+      ]
+    },
+    {
+      "id": "agent_reports",
+      "status": "후속 신규",
+      "fields": [
+        {
+          "name": "id",
+          "added": true,
+          "use": "고유 키 · 상세 조회와 다른 테이블의 연결 기준",
+          "key": "PK"
+        },
+        {
+          "name": "site_id",
+          "added": true,
+          "use": "매장 연결 · 현장 범위 조회와 RLS 검사",
+          "key": "FK"
+        },
+        {
+          "name": "schedule_id",
+          "added": true,
+          "use": "공정표 버전 연결 · 간트와 보고서 범위 지정",
+          "key": "FK"
+        },
+        {
+          "name": "period_start",
+          "added": true,
+          "use": "집계·보고 기간 시작일",
+          "key": "—"
+        },
+        {
+          "name": "period_finish",
+          "added": true,
+          "use": "집계·보고 기간 종료일",
+          "key": "—"
+        },
+        {
+          "name": "revision",
+          "added": true,
+          "use": "같은 데이터의 수정본 순서 · 덮어쓰기 없이 보존",
+          "key": "—"
+        },
+        {
+          "name": "status",
+          "added": true,
+          "use": "처리 상태 · 목록 필터와 허용 작업 판정",
+          "key": "—"
+        },
+        {
+          "name": "report_file_id",
+          "added": true,
+          "use": "생성 보고서 파일 미리보기·다운로드",
+          "key": "FK"
+        },
+        {
+          "name": "generated_at",
+          "added": true,
+          "use": "생성본 정렬과 버전 확인",
+          "key": "—"
+        },
+        {
+          "name": "approved_by",
+          "added": true,
+          "use": "본사 승인자 표시와 추적",
+          "key": "FK"
+        },
+        {
+          "name": "approved_at",
+          "added": true,
+          "use": "승인본 여부와 승인 시각 표시",
+          "key": "—"
+        },
+        {
+          "name": "provenance",
+          "added": true,
+          "use": "생성 당시 사용한 작업·관측 revision·증빙과 모델 버전 확인",
+          "key": "—"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    [
+      "files",
+      "daily_records",
+      "changes_file_id"
+    ],
+    [
+      "model_versions",
+      "daily_records",
+      "model_version_id"
+    ],
+    [
+      "files",
+      "daily_records",
+      "photo_file_id"
+    ],
+    [
+      "files",
+      "daily_records",
+      "report_file_id"
+    ],
+    [
+      "files",
+      "daily_records",
+      "result_file_id"
+    ],
+    [
+      "locations",
+      "daily_records",
+      "site_id, location_id"
+    ],
+    [
+      "schedules",
+      "daily_records",
+      "site_id, schedule_id"
+    ],
+    [
+      "files",
+      "gt_datasets",
+      "archive_file_id"
+    ],
+    [
+      "files",
+      "gt_datasets",
+      "manifest_file_id"
+    ],
+    [
+      "sites",
+      "locations",
+      "site_id"
+    ],
+    [
+      "files",
+      "model_versions",
+      "classes_file_id"
+    ],
+    [
+      "files",
+      "model_versions",
+      "config_file_id"
+    ],
+    [
+      "gt_datasets",
+      "model_versions",
+      "gt_dataset_id"
+    ],
+    [
+      "files",
+      "model_versions",
+      "metrics_file_id"
+    ],
+    [
+      "files",
+      "model_versions",
+      "weights_file_id"
+    ],
+    [
+      "files",
+      "schedule_sources",
+      "file_id"
+    ],
+    [
+      "schedules",
+      "schedule_sources",
+      "schedule_id"
+    ],
+    [
+      "schedule_tasks",
+      "schedule_task_locations",
+      "schedule_id, task_id"
+    ],
+    [
+      "locations",
+      "schedule_task_locations",
+      "site_id, location_id"
+    ],
+    [
+      "schedules",
+      "schedule_task_locations",
+      "site_id, schedule_id"
+    ],
+    [
+      "schedules",
+      "schedule_tasks",
+      "schedule_id"
+    ],
+    [
+      "schedule_sources",
+      "schedule_tasks",
+      "schedule_id, schedule_source_id"
+    ],
+    [
+      "sites",
+      "schedules",
+      "site_id"
+    ],
+    [
+      "files",
+      "weekly_reports",
+      "metadata_file_id"
+    ],
+    [
+      "files",
+      "weekly_reports",
+      "report_file_id"
+    ],
+    [
+      "sites",
+      "weekly_reports",
+      "site_id"
+    ],
+    [
+      "schedules",
+      "weekly_reports",
+      "site_id, schedule_id"
+    ],
+    [
+      "sites",
+      "files",
+      "site_id"
+    ],
+    [
+      "sites",
+      "site_memberships",
+      "site_id"
+    ],
+    [
+      "users",
+      "site_memberships",
+      "user_id"
+    ],
+    [
+      "organizations",
+      "site_memberships",
+      "organization_id"
+    ],
+    [
+      "sites",
+      "question_archives",
+      "site_id"
+    ],
+    [
+      "files",
+      "question_archives",
+      "archive_file_id"
+    ],
+    [
+      "sites",
+      "change_requests",
+      "site_id"
+    ],
+    [
+      "schedules",
+      "change_requests",
+      "schedule_id"
+    ],
+    [
+      "schedule_tasks",
+      "change_requests",
+      "task_id"
+    ],
+    [
+      "users",
+      "change_requests",
+      "requester_id"
+    ],
+    [
+      "organizations",
+      "change_requests",
+      "from_organization_id / to_organization_id"
+    ],
+    [
+      "sites",
+      "task_events",
+      "site_id"
+    ],
+    [
+      "schedule_tasks",
+      "task_events",
+      "task_id"
+    ],
+    [
+      "users",
+      "task_events",
+      "actor_id"
+    ],
+    [
+      "change_requests",
+      "task_events",
+      "request_id"
+    ],
+    [
+      "task_events",
+      "task_event_files",
+      "event_id"
+    ],
+    [
+      "files",
+      "task_event_files",
+      "file_id"
+    ],
+    [
+      "sites",
+      "task_event_files",
+      "site_id"
+    ],
+    [
+      "sites",
+      "task_observations",
+      "site_id"
+    ],
+    [
+      "schedule_tasks",
+      "task_observations",
+      "task_id"
+    ],
+    [
+      "daily_records",
+      "task_observations",
+      "daily_record_id"
+    ],
+    [
+      "files",
+      "task_observations",
+      "overlay_file_id"
+    ],
+    [
+      "task_observations",
+      "task_events",
+      "observation_id"
+    ],
+    [
+      "sites",
+      "agent_reports",
+      "site_id"
+    ],
+    [
+      "schedules",
+      "agent_reports",
+      "schedule_id"
+    ],
+    [
+      "files",
+      "agent_reports",
+      "report_file_id"
+    ],
+    [
+      "users",
+      "agent_reports",
+      "approved_by"
+    ],
+    [
+      "schedules",
+      "task_events",
+      "schedule_id"
+    ],
+    [
+      "schedules",
+      "task_observations",
+      "schedule_id"
+    ],
+    [
+      "users",
+      "files",
+      "uploaded_by"
+    ],
+    [
+      "task_events",
+      "task_events",
+      "target_event_id"
+    ],
+    [
+      "daily_records",
+      "daily_records",
+      "location_id, previous_record_id"
+    ],
+    [
+      "schedule_tasks",
+      "schedule_tasks",
+      "schedule_id, predecessor_id"
+    ],
+    [
+      "schedule_tasks",
+      "schedule_tasks",
+      "schedule_id, successor_id"
+    ]
+  ],
+  "flows": [
+    {
+      "name": "로그인·현장 선택",
+      "inputs": "로그인 결과 · 선택한 매장",
+      "processing": "FastAPI가 사용자와 활성 소속·역할 확인",
+      "reads": [
+        "users",
+        "organizations",
+        "site_memberships",
+        "sites"
+      ],
+      "writes": [],
+      "outputs": "허용된 매장 목록과 담당 역할",
+      "guard": "서버 인증 사용자 ID로 RLS 컨텍스트를 설정하고 트랜잭션 종료 시 해제"
+    },
+    {
+      "name": "홈·세계지도",
+      "inputs": "매장 선택 · 현재 시각",
+      "processing": "현장별 일정·검토·요청 집계",
+      "reads": [
+        "sites",
+        "schedules",
+        "schedule_tasks",
+        "change_requests",
+        "task_events",
+        "site_memberships"
+      ],
+      "writes": [],
+      "outputs": "지도 핀 · 현지 시각 · 검토 필요 건수",
+      "guard": "매장 목록과 집계에 같은 현장 권한 적용. 시각 표시는 브라우저에서 계산"
+    },
+    {
+      "name": "공정표 업로드·추출",
+      "inputs": "원본 PDF · 매장 · 버전",
+      "processing": "파일 검증 → 추출 하네스 → 원본 대조 → 본사 확인",
+      "reads": [
+        "sites",
+        "schedules",
+        "files"
+      ],
+      "writes": [
+        "files",
+        "schedules",
+        "schedule_sources",
+        "schedule_tasks"
+      ],
+      "outputs": "작업 ID·원본 일정·추출된 간트",
+      "guard": "승인 전 추출 결과는 운영 일정에 미반영. 원본 ID와 DB UUID를 구분"
+    },
+    {
+      "name": "간트 조회·작업 분류",
+      "inputs": "공정표 버전 · 조회 주차 · 분류",
+      "processing": "기간 겹침 조회 → 작업·처리 경로 표시",
+      "reads": [
+        "sites",
+        "schedules",
+        "schedule_sources",
+        "schedule_tasks",
+        "schedule_task_locations"
+      ],
+      "writes": [
+        "schedule_tasks",
+        "task_events"
+      ],
+      "outputs": "간트 · 작업 분류 · 원본/유효 일정",
+      "guard": "분류 변경은 허용된 역할만 가능. VISION/MANUAL/REVIEW 경로를 별도 확정"
+    },
+    {
+      "name": "카메라·대표 사진",
+      "inputs": "촬영 위치 · OxBlue 사진 후보",
+      "processing": "수집 서비스가 현지 날짜별 대표 사진 선정",
+      "reads": [
+        "locations",
+        "sites",
+        "site_memberships"
+      ],
+      "writes": [
+        "files",
+        "daily_records"
+      ],
+      "outputs": "날짜별 대표 사진과 촬영 시각",
+      "guard": "카메라 인증 참조는 수집기만 조회. 후보 보존 정책은 별도 확정"
+    },
+    {
+      "name": "AI 관측·분석",
+      "inputs": "대표 사진 · 모델 · 대상/시야 매핑",
+      "processing": "Vision 추론 → 후처리 → 간트 작업에 명시적 연결",
+      "reads": [
+        "daily_records",
+        "model_versions",
+        "gt_datasets",
+        "schedule_tasks",
+        "schedule_task_locations",
+        "files"
+      ],
+      "writes": [
+        "files",
+        "daily_records",
+        "task_observations"
+      ],
+      "outputs": "원본·오버레이 · 관측률 · 인식 불가 사유",
+      "guard": "같은 현장과 작업에 연결. 가림은 0%로 변환하지 않으며 완료 확인과 구분"
+    },
+    {
+      "name": "현장 증빙·재제출",
+      "inputs": "작업 ID · 사진 · 작업 보고",
+      "processing": "파일 업로드·검증 → 제출 이벤트 추가",
+      "reads": [
+        "schedule_tasks",
+        "task_events",
+        "site_memberships"
+      ],
+      "writes": [
+        "files",
+        "task_events",
+        "task_event_files"
+      ],
+      "outputs": "증빙 차수와 본사 검토 대기",
+      "guard": "재제출은 기존 파일·제출을 보존. 업로드 완료와 파일 연결을 검증"
+    },
+    {
+      "name": "본사 검토·완료 확인",
+      "inputs": "제출 또는 관측 ID · 수락/반려 · 사유",
+      "processing": "검토 대상·권한 확인 → 결정 이벤트 기록",
+      "reads": [
+        "task_events",
+        "task_event_files",
+        "files",
+        "task_observations",
+        "site_memberships"
+      ],
+      "writes": [
+        "task_events"
+      ],
+      "outputs": "완료 확인 또는 재촬영 요구 · 검토 이력",
+      "guard": "target_event_id 또는 observation_id로 검토 대상 고정. 반려 사유 필수"
+    },
+    {
+      "name": "변경 요청·대화",
+      "inputs": "변경 일정/작업 · 사유 · 메시지·첨부",
+      "processing": "요청 생성 → 대화 → 수신자 결정 → 승인된 변경 적용",
+      "reads": [
+        "schedule_tasks",
+        "change_requests",
+        "task_events",
+        "organizations",
+        "site_memberships"
+      ],
+      "writes": [
+        "change_requests",
+        "task_events",
+        "task_event_files",
+        "files",
+        "schedule_tasks"
+      ],
+      "outputs": "요청별 대화 · 결정 · 적용 후 간트",
+      "guard": "대기 요청만 한 번 결정. 요청 상태와 이벤트를 원자적으로 기록. 적용 일정은 별도 확정"
+    },
+    {
+      "name": "검토 배지·알림",
+      "inputs": "로그인 사용자 · 현재 현장",
+      "processing": "대기 요청과 미처리 검토 집계",
+      "reads": [
+        "change_requests",
+        "task_events",
+        "site_memberships"
+      ],
+      "writes": [],
+      "outputs": "현장별 검토 배지 · 처리할 항목 목록",
+      "guard": "1차는 미처리 건수. 사용자별 발송·읽음 이력이 필요하면 알림 저장 설계를 확장"
+    },
+    {
+      "name": "주간 보고서 생성",
+      "inputs": "조회 주차 · 현장 · 공정표 버전",
+      "processing": "근거 조회 → AI 초안 → 본사 검토 → Word/PDF",
+      "reads": [
+        "weekly_reports",
+        "schedules",
+        "schedule_tasks",
+        "task_events",
+        "task_observations",
+        "change_requests",
+        "files"
+      ],
+      "writes": [
+        "agent_reports",
+        "files"
+      ],
+      "outputs": "생성 보고서 · 승인본 · 근거 ID",
+      "guard": "이번 주에 걸친 작업 전체 조회. 지난주부터 이어진 작업만 이전 자료 비교"
+    },
+    {
+      "name": "챗봇·질문 보관",
+      "inputs": "사용자 질문 · 현장/기간",
+      "processing": "권한 있는 자료 조회 → LLM 답변 → 근거 기록",
+      "reads": [
+        "schedule_tasks",
+        "task_events",
+        "task_observations",
+        "agent_reports",
+        "site_memberships"
+      ],
+      "writes": [
+        "question_archives",
+        "files"
+      ],
+      "outputs": "답변 · 근거 링크 · 질문 보관 목록",
+      "guard": "에이전트는 허용된 API만 조회. 원문·근거는 파일과 질문 ID로 보관"
+    }
+  ]
+}
+  </script>
+  <script>
+   'use strict';
+
+const data = JSON.parse(document.querySelector('#data').textContent);
+const select = (selector) => document.querySelector(selector);
+const escapeHtml = (value) => String(value).replace(/[&<>"']/g, (character) => ({
+  '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+}[character]));
+const rows = [
+  ['users', 'organizations', 'sites', 'site_memberships'],
+  ['locations', 'schedules', 'schedule_sources', 'schedule_tasks', 'schedule_task_locations'],
+  ['gt_datasets', 'model_versions', 'daily_records', 'task_observations'],
+  ['change_requests', 'task_events', 'task_event_files', 'files'],
+  ['weekly_reports', 'agent_reports', 'question_archives']
+];
+const positions = {};
+rows.forEach((row, rowIndex) => {
+  row.forEach((id, columnIndex) => {
+    positions[id] = { x: 32 + columnIndex * 331, y: 32 + rowIndex * 220 };
+  });
+});
+let selectedFlow = -1;
+let selectedTable = 'sites';
+let scale = 1;
+
+function zoom(value) {
+  scale = Math.min(1.5, Math.max(0.35, value));
+  select('#canvas').style.transform = `scale(${scale})`;
+  select('#stage').style.width = `${1700 * scale}px`;
+  select('#stage').style.height = `${1120 * scale}px`;
+  select('#zoomlabel').textContent = `${Math.round(scale * 100)}%`;
+}
+
+function fit() {
+  zoom((select('#viewport').clientWidth - 16) / 1700);
+}
+
+function renderGraph() {
+  const flow = data.flows[selectedFlow];
+  const reads = new Set(flow?.reads || []);
+  const writes = new Set(flow?.writes || []);
+  const active = new Set([...reads, ...writes]);
+  const relations = data.edges.filter(([parent, child]) => (
+    parent === selectedTable || child === selectedTable
+  ));
+  const paths = data.edges.map(([parent, child, foreignKey]) => {
+    const start = positions[parent];
+    const end = positions[child];
+    let path;
+    if (parent === child) {
+      path = `M${start.x + 286},${start.y + 45}
+        C${start.x + 324},${start.y - 18} ${start.x + 324},${start.y + 173}
+        ${start.x + 286},${start.y + 115}`;
+    } else if (start.y === end.y) {
+      const startX = start.x + (start.x < end.x ? 286 : 0);
+      const endX = end.x + (start.x < end.x ? 0 : 286);
+      const middleX = (startX + endX) / 2;
+      path = `M${startX},${start.y + 75}
+        C${middleX},${start.y + 35} ${middleX},${end.y + 35} ${endX},${end.y + 75}`;
+    } else {
+      const startX = start.x + 143;
+      const endX = end.x + 143;
+      const startY = start.y + (start.y < end.y ? 155 : 0);
+      const endY = end.y + (start.y < end.y ? 0 : 155);
+      const middleY = (startY + endY) / 2;
+      path = `M${startX},${startY}
+        C${startX},${middleY} ${endX},${middleY} ${endX},${endY}`;
+    }
+    const focused = parent === selectedTable || child === selectedTable;
+    const related = active.has(parent) && active.has(child);
+    return `<path class="edge ${related ? 'active' : ''} ${focused ? 'focus' : ''}"
+      d="${path}" marker-end="url(#arrow)">
+      <title>${escapeHtml(`${parent} → ${child} / FK ${foreignKey}`)}</title>
+    </path>`;
+  }).join('');
+
+  const entities = data.tables.map((table) => {
+    const position = positions[table.id];
+    const reading = reads.has(table.id);
+    const writing = writes.has(table.id);
+    let kind = '';
+    if (reading && writing) kind = 'both';
+    else if (writing) kind = 'write';
+    else if (reading) kind = 'read';
+    const phase = table.status.includes('003') ? '003'
+      : table.status.includes('신규') ? '후속 신규' : '운영';
+    const selected = selectedTable === table.id;
+    const dimmed = flow && !active.has(table.id);
+    const keys = table.fields.slice(0, 3).map((field) => {
+      const prefix = field.key === '—' ? '' : `${field.key} `;
+      return escapeHtml(prefix + field.name);
+    }).join('<br>');
+    const purpose = reading && writing ? '조회 · 저장'
+      : writing ? '저장' : reading ? '조회' : `${table.fields.length}개 필드`;
+    return `<button class="entity ${kind} ${dimmed ? 'dim' : ''} ${selected ? 'selected' : ''}"
+      data-table="${table.id}" style="left:${position.x}px;top:${position.y}px"
+      aria-pressed="${selected}">
+      <span class="title"><b>${table.id}</b><small>${phase}</small></span>
+      <div class="keys">${keys}</div>
+      <div class="purpose">${purpose} · 상세 보기 →</div>
+    </button>`;
+  }).join('');
+  select('#canvas').innerHTML = `
+    <svg viewBox="0 0 1700 1120" aria-label="20개 테이블의 외래 키 관계">
+      <defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+        <path d="M0,0 L8,4 L0,8 Z" fill="#789481"/>
+      </marker></defs>${paths}
+    </svg>${entities}`;
+  select('#canvas').querySelectorAll('[data-table]').forEach((button) => {
+    button.onclick = () => {
+      selectedTable = button.dataset.table;
+      renderGraph();
+    };
+  });
+
+  const table = data.tables.find((item) => item.id === selectedTable);
+  const relationText = relations.map(([parent, child, foreignKey]) => (
+    escapeHtml(`${parent} → ${child} · FK ${foreignKey}`)
+  )).join('<br>');
+  const fieldRows = table.fields.map((field) => `
+    <tr><td><code>${escapeHtml(field.name)}</code></td>
+      <td>${field.key}</td><td>${field.added ? '추가' : '기존'}</td>
+      <td>${escapeHtml(field.use)}</td></tr>`).join('');
+  select('#inspector').innerHTML = `
+    <h2>${escapeHtml(table.id)} <span class="tag">${escapeHtml(table.status)}</span></h2>
+    <div class="relations">${relationText || '다른 테이블에서 참조하는 기준 정보'}</div>
+    <table><thead><tr><th>필드명</th><th>키</th><th>구분</th><th>사용처 · 추가 이유</th></tr></thead>
+      <tbody>${fieldRows}</tbody></table>`;
+}
+
+function choose(index) {
+  selectedFlow = index;
+  select('#nav').querySelectorAll('[data-flow]').forEach((button) => {
+    button.setAttribute('aria-pressed', Number(button.dataset.flow) === index);
+  });
+  const flow = data.flows[index];
+  select('#heading').textContent = flow ? flow.name : '전체 ERD';
+  select('#intro').textContent = flow
+    ? '입력부터 출력까지 흐름과 관련 테이블을 확인하세요. 테이블을 누르면 필드별 사용처를 볼 수 있습니다.'
+    : '20개 테이블과 외래 키 관계를 탐색하세요.';
+  select('#flow').innerHTML = flow ? [
+    ['01 입력', flow.inputs, '사용자 또는 외부 시스템'],
+    ['02 처리 · 조회', flow.processing, flow.reads.join(' · ')],
+    ['03 저장', flow.writes.length ? '백엔드가 권한과 무결성을 확인한 뒤 저장' : '화면 조회 기능',
+      flow.writes.join(' · ') || '저장 없음'],
+    ['04 출력', flow.outputs, '웹 화면 또는 생성 파일']
+  ].map(([label, body, note]) => `
+    <div class="step"><b>${label}</b><span>${escapeHtml(body)}</span>
+      <small>${escapeHtml(note)}</small></div>`).join('') : '';
+  select('#guard').textContent = flow ? flow.guard
+    : '운영 11개, 003 추가 1개, 후속 설계 8개. 좌측 업무를 선택해 조회·저장 경로를 확인하세요.';
+  if (flow) selectedTable = flow.writes[0] || flow.reads[0];
+  renderGraph();
+}
+
+select('#nav').innerHTML = '<button data-flow="-1" aria-pressed="true">전체 ERD</button>'
+  + data.flows.map((flow, index) => `
+    <button data-flow="${index}" aria-pressed="false">
+      <small>${String(index + 1).padStart(2, '0')}</small>${escapeHtml(flow.name)}
+    </button>`).join('');
+select('#nav').querySelectorAll('button').forEach((button) => {
+  button.onclick = () => choose(Number(button.dataset.flow));
+});
+select('#minus').onclick = () => zoom(scale - 0.1);
+select('#plus').onclick = () => zoom(scale + 0.1);
+select('#fit').onclick = fit;
+choose(-1);
+zoom(0.85);
+  </script>
+ </body>
+</html>
