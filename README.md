@@ -88,6 +88,8 @@
 
 [운영 DB 구조와 사용법](docs/architecture/erd-workflow/README.md)에 005 적용 후 **20개 저장 테이블·186개 필드와 12개 호환·조회 뷰**, 쉬운 흐름도와 상세 ERD를 정리했습니다. 신규 버전 사용설명서와 설치·전환 SQL, 기능별 추가 API 연결 항목을 함께 제공합니다.
 
+[업무 API 코드와 연결 안내](docs/api/README.md)에는 인증·현장 제출·검토·변경 요청·보고서 API와 OpenAPI 명세가 있습니다. 로컬 구현이며 PostgreSQL 통합 검증과 운영 배포는 별도 작업입니다.
+
 ## 협업 공간
 
 **[Notion 팀 페이지 바로가기](https://app.notion.com/p/1-8c15b79a9db5824eaf7a0103c8552003)**
@@ -109,7 +111,7 @@
 | [`docs/meetings/`](docs/meetings/) | 공개 가능 여부를 검토한 회의 요약 |
 | [`docs/proposal/`](docs/proposal/) | 최초 배정 과제(고객 동선·Zone 분석) 제안서 요약. 방향 전환 이전의 배경 자료 |
 | [`docs/references/`](docs/references/) | 논문·기술문서 레퍼런스 및 리뷰 |
-| [`docs/public/`](docs/public/) | 백엔드 공개 문서와 SQL 안내 (API 실행 코드는 별도 관리) |
+| [`docs/public/`](docs/public/) | 백엔드 공개 문서와 SQL 안내 |
 | [`prototype/public-demo/`](prototype/public-demo/) | 가상 자료 기반 웹 시연 (실제 AI·서버 연동 전) |
 | `data/` | 로컬 데이터 작업 공간 (Git 추적 제외) |
 
