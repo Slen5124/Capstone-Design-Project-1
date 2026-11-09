@@ -86,7 +86,7 @@
 
 ## ERD와 업무별 데이터 흐름
 
-[운영 DB 구조와 사용법](docs/architecture/erd-workflow/README.md)에 005 적용 후 **20개 저장 테이블·186개 필드와 12개 호환·조회 뷰**, 쉬운 흐름도와 상세 ERD를 정리했습니다. 신규 버전 사용설명서와 설치·전환 SQL, 기능별 추가 API 연결 항목을 함께 제공합니다.
+[운영 DB 구조와 사용법](docs/architecture/erd-workflow/README.md)에 **20개 저장 테이블·186개 필드**와 업무 흐름을 정리했습니다. 2026년 11월 9일 운영 조회에서 호환·조회 뷰는 0개입니다. [한국어 상세 트리](docs/architecture/DB_한국어_상세_트리.md)와 [설계 결정](docs/planning/2026-11-09-db-design-decisions.md)도 참고하세요. 기존 ERD와 SQL은 005 단계의 호환 뷰를 포함하므로 현재 운영 구조와 구분해야 합니다.
 
 [업무 API 코드와 연결 안내](docs/api/README.md)에는 인증·현장 제출·검토·변경 요청·보고서 API와 OpenAPI 명세가 있습니다. 로컬 구현이며 PostgreSQL 통합 검증과 운영 배포는 별도 작업입니다.
 
