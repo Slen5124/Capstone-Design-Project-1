@@ -162,7 +162,7 @@ class ProjectService:
 
     def event(self, c, ctx, event_type, *, event_id=None, body='', details=None,
               request_id=None, target_event_id=None, observation_id=None):
-        sequence = max((e['details'].get('sequence', 0) for e in self.events(c, ctx)), default=0) + 1
+        sequence = max((e['details'].get('sequence', 0) for e in self.events(c, ctx)), default=0) + 1 if ctx.get('task') else 1
         row = dict(id=event_id or uuid4(), site_id=ctx['site']['id'],
                    schedule_id=ctx.get('schedule', {}).get('id'), task_id=ctx.get('task', {}).get('id'),
                    actor_id=ctx['user_id'], event_type=event_type, occurred_at=self.clock(),

@@ -99,7 +99,8 @@ def create_router(s):
         with s.engine.connect() as c:
             ctx = s.scope(c, site_code, actor, schedule_id, roles={'field', 'hq', 'viewer'})
             t = s.table('agent_reports')
-            rows = c.execute(select(t).where(t.c.site_id == ctx['site']['id'], t.c.schedule_id == schedule_id)
+            rows = c.execute(select(t).where(t.c.site_id == ctx['site']['id'], t.c.schedule_id == schedule_id,
+                t.c.provenance['kind'].as_string() == 'project_api_report')
                 .order_by(t.c.period_start.desc(), t.c.revision.desc()).limit(limit).offset(offset)).mappings()
             return {'items': [public(r) | {'stale': digest(material(c, ctx, r['period_start'])) !=
                 r['provenance']['input_digest']} for r in rows if r['provenance'].get('kind') == 'project_api_report']}
@@ -109,7 +110,8 @@ def create_router(s):
         with s.engine.connect() as c:
             ctx = s.scope(c, site_code, actor, roles={'agent'})
             t = s.table('agent_reports')
-            rows = c.execute(select(t).where(t.c.site_id == ctx['site']['id'], t.c.status == 'pending')
+            rows = c.execute(select(t).where(t.c.site_id == ctx['site']['id'], t.c.status == 'pending',
+                t.c.provenance['kind'].as_string() == 'project_api_report')
                 .order_by(t.c.generated_at).limit(limit)).mappings()
             return {'items': [public(r) for r in rows if r['provenance'].get('kind') == 'project_api_report']}
 
