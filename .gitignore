@@ -251,3 +251,4 @@ docs/references/papers/*.[pP][dD][fF]
 !/prototype/public-demo/src/templates/02-field-submission.html
 !/prototype/public-demo/src/templates/03-weekly-report.html
 !/prototype/public-demo/src/templates/index.html
+!/prototype/aloha-web/project-tools.html

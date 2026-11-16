@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ALOHA · 프로젝트 도구</title>
+<link rel="stylesheet" href="src/project-tools.css">
+<main>
+  <h1>프로젝트 도구</h1>
+  <form id="connect">
+    <label>API 주소 <input id="api-url" type="url" placeholder="https://api.example.org" required></label>
+    <label>접속 토큰 <input id="token" type="password" autocomplete="off" required></label>
+    <button>연결</button>
+  </form>
+  <p id="status" role="status" aria-live="polite"></p>
+  <fieldset id="project" disabled>
+    <legend>조회 범위</legend>
+    <label>매장 <select id="site"></select></label>
+    <label>공정표 <select id="schedule"></select></label>
+    <label>보고 주차 시작일 <input id="week" type="date" required></label>
+  </fieldset>
+  <section id="tools" hidden>
+    <section aria-labelledby="reports-title">
+      <h2 id="reports-title">주간 보고서</h2>
+      <button type="button" id="refresh">목록 확인</button>
+      <button type="button" id="draft">초안 생성 요청</button>
+      <button type="button" id="final">최종본 생성 요청</button>
+      <ul id="reports"></ul>
+    </section>
+    <section aria-labelledby="chat-title">
+      <h2 id="chat-title">프로젝트 도우미</h2>
+      <div id="history" role="log" aria-label="대화 내역"></div>
+      <form id="ask">
+        <label>질문 <textarea id="message" required maxlength="2000" rows="2"></textarea></label>
+        <button>질문 보내기</button>
+      </form>
+    </section>
+  </section>
+</main>
+<script src="src/project-api.js"></script>
+<script src="src/project-tools-api.js"></script>
+<script src="src/project-tools.js"></script>
+</html>
