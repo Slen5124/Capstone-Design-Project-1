@@ -1,0 +1,13 @@
+private/
+outputs/
+*.local.json
+__pycache__/
+# Generated evidence/provenance, even if a custom output folder is used here.
+vision_result.json
+api_drafts.json
+run_provenance.json
+input_registration.json
+smoke_summary.json
+training_record.json
+training_complete.json
+*.tmp

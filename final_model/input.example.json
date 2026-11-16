@@ -1,0 +1,45 @@
+{
+  "site_code": "SITE_EXAMPLE",
+  "view_key": "VIEW_01",
+  "view_confirmed": false,
+  "source_wh": [1920, 1080],
+  "roi_space": "original",
+  "roi_mask": "private/roi.png",
+  "targets": [
+    {
+      "index": 1,
+      "target_key": "WALL_01",
+      "surface_type": "wall",
+      "activity": "wall_board_installation",
+      "roi_confirmed": false,
+      "schedule_id": null,
+      "task_id": null
+    },
+    {
+      "index": 2,
+      "target_key": "CEILING_01",
+      "surface_type": "ceiling",
+      "activity": "ceiling_panel_installation",
+      "roi_confirmed": false,
+      "schedule_id": null,
+      "task_id": null
+    },
+    {
+      "index": 3,
+      "target_key": "FLOOR_01",
+      "surface_type": "floor",
+      "activity": "floor_finish_installation",
+      "roi_confirmed": false,
+      "schedule_id": null,
+      "task_id": null
+    }
+  ],
+  "photos": [
+    {
+      "path": "private/photo.jpg",
+      "captured_at": "2026-01-01T12:00:00+00:00",
+      "daily_record_id": null,
+      "revision": 1
+    }
+  ]
+}

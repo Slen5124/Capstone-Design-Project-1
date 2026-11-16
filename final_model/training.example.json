@@ -1,0 +1,6 @@
+{
+  "schema_version": "final-training/0.2",
+  "exports": [
+    {"site_id": "SITE_EXAMPLE", "path": "private/export_with_reviewed_masks"}
+  ]
+}

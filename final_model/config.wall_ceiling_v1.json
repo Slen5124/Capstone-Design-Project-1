@@ -1,0 +1,12 @@
+{
+  "pipeline_version": "final-vision/0.1",
+  "encoder": "vit_base_patch14_reg4_dinov2.lvd142m",
+  "decoder": "upernet",
+  "n_sem": 8,
+  "n_state": 6,
+  "export_size": [1024, 576],
+  "min_roi_px": 500,
+  "min_observed_fraction": 0.3,
+  "min_mean_confidence": 0.6,
+  "quality_policy_status": "provisional_requires_validation"
+}
