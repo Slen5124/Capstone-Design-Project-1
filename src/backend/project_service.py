@@ -105,6 +105,8 @@ class ProjectService:
                 fail(403, '서비스에 허용된 사진·보고서 파일이 아닙니다.')
             return row
         own = row['uploaded_by'] == ctx['user_id']
+        if row['kind'] == 'copilot_turn' and (not own or attaching):
+            fail(403, '대화 내역은 대화한 사용자만 확인할 수 있습니다.')
         if kind == 'photo' and attaching and row['visibility'] != 'site':
             fail(422, '현장 증빙에는 매장 공개 범위로 업로드한 사진을 선택하세요.')
         if row['visibility'] == 'internal' and not (own or ctx['role'] == 'hq'):

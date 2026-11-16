@@ -52,6 +52,7 @@ def create_app(*, engine=None, tables=None, identities=None, storage_root=None, 
         from db import engine
     loaded = {} if tables is None else dict(tables)
     weekly_reports = os.getenv("ALO_ENABLE_WEEKLY_REPORTS") == "1"
+    copilot = os.getenv("ALO_ENABLE_COPILOT") == "1"
 
     @asynccontextmanager
     async def lifespan(app):
@@ -62,8 +63,13 @@ def create_app(*, engine=None, tables=None, identities=None, storage_root=None, 
                              'schedule_tasks', 'files', 'task_events', 'task_event_files',
                              'task_observations', 'daily_records', 'schedule_task_locations', 'change_requests', 'agent_reports'):
                     loaded[name] = Table(name, metadata, autoload_with=c, resolve_fks=False)
-                if weekly_reports:
+                if weekly_reports or copilot:
                     loaded["locations"] = Table("locations", metadata, autoload_with=c, resolve_fks=False)
+                if copilot:
+                    loaded["question_archives"] = Table("question_archives", metadata, autoload_with=c, resolve_fks=False)
+        if copilot:
+            from copilot_search import rebuild
+            rebuild(app.state.project_service)
         yield
 
     app = FastAPI(title='ALOHA Project API', version='1.0.0', lifespan=lifespan,
@@ -87,6 +93,9 @@ def create_app(*, engine=None, tables=None, identities=None, storage_root=None, 
     if weekly_reports:
         from project_weekly_reports import create_router as weekly_reports_router
         app.include_router(weekly_reports_router(service))
+    if copilot:
+        from project_copilot import create_router as copilot_router
+        app.include_router(copilot_router(service))
 
     @app.get('/health', tags=['상태'])
     def health():
