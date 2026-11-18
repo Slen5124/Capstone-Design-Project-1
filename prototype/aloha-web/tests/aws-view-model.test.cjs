@@ -1,0 +1,17 @@
+const assert=require('node:assert/strict'),V=require('../src/aws-view-model.js');
+for(const status of ['confirmed','accepted','ai_observation_accepted'])assert.equal(V.group({status}),'done');
+for(const status of ['rejected','field_confirmation_required','review_pending','completion_requested','observation_review_pending'])assert.equal(V.group({status}),'review');
+assert.equal(V.group({status:'planned'}),'schedule');
+assert.equal(V.status({id:'a',status:'planned'},[{task_id:'a',status:'pending'}]),'추가 기간 요청');
+assert.equal(V.status({id:'a',status:'confirmed'},[{task_id:'a',status:'pending'}]),'완료 확인');
+assert.equal(V.source({processing_route:'ai',latest_submission:{id:'photo'}}),'field');
+assert.equal(V.source({processing_route:'ai'}),'ai');
+const task={start:'2031-02-01',finish:'2031-02-07',planned_finish:'2031-02-28'};
+const request={id:'r2',created_at:'2031-02-11T12:00:00Z'};
+const events=[{event_type:'schedule_apply',request_id:'r1',occurred_at:'2031-02-10T12:00:00Z',details:{after_start:'2031-02-01',after_finish:'2031-02-14'}}];
+assert.deepEqual(V.baseline(task,events,request),{start:'2031-02-01',finish:'2031-02-14'});
+events.push({event_type:'schedule_apply',request_id:'r2',occurred_at:'2031-02-12T12:00:00Z',details:{before_start:'2031-02-01',before_finish:'2031-02-14',after_finish:'2031-02-28'}});
+assert.equal(V.baseline(task,events,request).finish,'2031-02-14','request card keeps pre-approval date after application');
+assert.equal(V.baseline(task,[],request).finish,'2031-02-07');
+assert.equal(V.baseline(task,[{event_type:'schedule_apply',occurred_at:'2031-02-10T12:00:00Z',details:{}}],request).finish,null,'unknown historical dates must not be invented');
+console.log('PASS: API status/source mapping and historical request dates');

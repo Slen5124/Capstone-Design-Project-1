@@ -5,7 +5,7 @@ for(const [file,name] of Object.entries(pages)){
   const html=fs.readFileSync(path.join(root,'src/templates',file),'utf8')
     .replace('</head>','<link rel="stylesheet" href="fonts.css"><link rel="stylesheet" href="mobile-fixes.css"><link rel="stylesheet" href="navigation.css"><link rel="stylesheet" href="scene.css"><script src="assets/site-catalog.js"></script><script src="site-summary.js"></script><script src="ui.js"></script><script src="task-details.js"></script><script src="navigation.js"></script></head>')
     .replace('<script src="chat.js">','<script src="pages/'+name+'-adapter.js"></script><script src="chat.js">')
-    .replace('</head>','<link rel="stylesheet" href="review-tags.css"></head>');
+    .replace('</head>','<link rel="stylesheet" href="review-tags.css"><link rel="stylesheet" href="media-state.css"><script src="media-state.js"></script></head>');
   fs.writeFileSync(path.join(out,file),html);
 }
 for(const file of fs.readdirSync(path.join(root,'src')))if(/\.(js|css)$/.test(file))fs.copyFileSync(path.join(root,'src',file),path.join(out,file));
