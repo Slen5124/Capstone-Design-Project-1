@@ -227,6 +227,24 @@ def test_report_job_freezes_inputs_and_only_agent_can_finish(api):
     assert c.post(url,json=completion,headers=headers('agent')).status_code==200
 
 
+def test_report_list_reuses_current_week_digest(api, monkeypatch):
+    import project_reports
+    c, ids, _, _, _ = api
+    for _ in range(2):
+        response = c.post(base(ids)+'/reports', json={'id':str(uuid4()),'week_start':'2025-02-17'}, headers=headers('hq'))
+        assert response.status_code == 201, response.text
+    calls = []
+    original = project_reports.digest
+    def counted(value):
+        calls.append(value)
+        return original(value)
+    monkeypatch.setattr(project_reports, 'digest', counted)
+    response = c.get(base(ids)+'/reports', headers=headers('hq'))
+    assert response.status_code == 200
+    assert len(response.json()['items']) == 2
+    assert len(calls) == 1
+
+
 def test_file_upload_integrity_private_download_and_traversal(api):
     c,ids,_,_,tmp=api
     image=io.BytesIO();Image.new('RGB',(10,10),'white').save(image,format='JPEG');content=image.getvalue()

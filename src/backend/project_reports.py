@@ -102,8 +102,16 @@ def create_router(s):
             rows = c.execute(select(t).where(t.c.site_id == ctx['site']['id'], t.c.schedule_id == schedule_id,
                 t.c.provenance['kind'].as_string() == 'project_api_report')
                 .order_by(t.c.period_start.desc(), t.c.revision.desc()).limit(limit).offset(offset)).mappings()
-            return {'items': [public(r) | {'stale': digest(material(c, ctx, r['period_start'])) !=
-                r['provenance']['input_digest']} for r in rows if r['provenance'].get('kind') == 'project_api_report']}
+            digests = {}
+            items = []
+            for row in rows:
+                if row['provenance'].get('kind') != 'project_api_report':
+                    continue
+                week = row['period_start']
+                if week not in digests:
+                    digests[week] = digest(material(c, ctx, week))
+                items.append(public(row) | {'stale': digests[week] != row['provenance']['input_digest']})
+            return {'items': items}
 
     @router.get('/sites/{site_code}/report-jobs', summary='Agent가 가져갈 생성 대기 작업')
     def jobs(site_code: str, limit: int = Query(20, ge=1, le=100), actor=Depends(identity)):
