@@ -18,6 +18,14 @@ const ProjectAPI = require('../src/project-api.js');
   assert.equal(JSON.parse(calls[1].options.body).progress_percent, 75);
   const failed = new ProjectAPI({baseUrl: 'https://example.com', token: 'test', fetcher: async () => ({ok: false, status: 409, json: async () => ({detail: '최신 제출을 확인하세요.'})})});
   await assert.rejects(() => failed.me(), e => e.status === 409 && e.message.includes('최신 제출'));
+  const structured = new ProjectAPI({baseUrl:'https://example.com',token:'test',fetcher:async()=>({ok:false,status:409,json:async()=>({detail:{message:'자료 부족',readiness:{ready:false}}})})});
+  await assert.rejects(()=>structured.me(),e=>e.message==='자료 부족'&&e.readiness.ready===false);
+  for (const blob of [false,true]) {
+    const slow = new ProjectAPI({baseUrl:'https://example.com',token:'test',fetcher:async(_,options)=>({ok:true,json:()=>new Promise((_,reject)=>options.signal.addEventListener('abort',()=>reject(Object.assign(Error(),{name:'AbortError'})))),blob:()=>new Promise((_,reject)=>options.signal.addEventListener('abort',()=>reject(Object.assign(Error(),{name:'AbortError'}))))})});
+    const originalSetTimeout=globalThis.setTimeout;
+    globalThis.setTimeout=(fn)=>originalSetTimeout(fn,5);
+    try { await assert.rejects(()=>slow.request('/me',{blob}),/시간이 초과/); } finally { globalThis.setTimeout=originalSetTimeout; }
+  }
   await assert.rejects(() => api.request('//other.example/path'));
   console.log('PASS: API URL validation, authenticated scoped requests, JSON payloads and HTTP errors');
 })();

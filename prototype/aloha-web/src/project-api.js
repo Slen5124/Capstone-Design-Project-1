@@ -27,13 +27,16 @@
         });
         if (!response.ok) {
           let data;
-          try { data = await response.json(); } catch {}
-          const message = Array.isArray(data?.detail) ? data.detail.map(e => e.msg).join(' / ') : data?.detail;
+          try { data = await response.json(); } catch (error) { if (error.name === 'AbortError') throw error; }
+          const detail = data?.detail;
+          const message = Array.isArray(detail) ? detail.map(e => e.msg).join(' / ') :
+            typeof detail === 'object' ? detail?.message : detail;
           const error = Error(message || 'API 요청을 처리하지 못했습니다. (' + response.status + ')');
           error.status = response.status;
+          error.readiness = detail?.readiness;
           throw error;
         }
-        return blob ? response.blob() : response.json();
+        return await (blob ? response.blob() : response.json());
       } catch (error) {
         if (error.name === 'AbortError') throw Error('응답 시간이 초과되었습니다. 입력은 그대로 두고 다시 시도하세요.');
         throw error;
